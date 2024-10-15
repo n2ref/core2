@@ -35,6 +35,7 @@ class Render extends Acl {
 
     /**
      * @param array $table
+     * @throws \Zend_Exception
      */
     public function __construct(array $table) {
 

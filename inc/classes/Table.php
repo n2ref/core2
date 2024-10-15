@@ -1051,55 +1051,26 @@ abstract class Table extends Acl {
                         case self::FILTER_DATE_PERIOD:
                             $filter_value = $this->getFilters($key);
 
-                            if (empty($filter_value)) {
+                            if ( ! empty($filter_value)) {
+                                if ( ! empty($filter_value['period'])) {
+                                    $period       = explode('|', $filter_value['period']);
+                                    $period_dates = $this->getPeriodDates($period[0] ?? '', $period[1] ?: 0);
+
+                                    if ($period_dates['start'] || $period_dates['end']) {
+                                        $this->setFilter($key, [$period_dates['start'], $period_dates['end']]);
+                                    }
+                                }
+
+                            } else {
                                 $data = $filter_column->getData();
 
                                 if ( ! empty($data['periods']) && is_array($data['periods'])) {
                                     foreach ($data['periods'] as $period) {
                                         if ( ! empty($period['default'])) {
-                                            $period_type  = $period['type'] ?? '';
-                                            $period_count = $period['count'] ?? '';
+                                            $period_dates = $this->getPeriodDates($period['type'] ?? '', $period['count'] ?? 0);
 
-                                            $date_start = null;
-                                            $date_end   = null;
-
-                                            switch ($period_type) {
-                                                case 'days':
-                                                    if ($period_count >= 0) {
-                                                        $date_start = date('Y-m-d');
-                                                        $date_end   = date('Y-m-d', strtotime("{$period_count} days"));
-
-                                                    } else {
-                                                        $date_start = date('Y-m-d', strtotime("{$period_count} days"));
-                                                        $date_end   = date('Y-m-d');
-                                                    }
-                                                    break;
-
-                                                case 'month':
-                                                    if ($period_count > 0) {
-                                                        $date_start = date('Y-m-d');
-                                                        $date_end   = date('Y-m-t', strtotime("{$period_count} month"));
-
-                                                    } else {
-                                                        $date_start = date('Y-m-01', strtotime("{$period_count} month"));
-                                                        $date_end   = date('Y-m-d');
-                                                    }
-                                                    break;
-
-                                                case 'year':
-                                                    if ($period_count > 0) {
-                                                        $date_start = date('Y-m-d');
-                                                        $date_end   = date('Y-12-31', strtotime("{$period_count} year"));
-
-                                                    } else {
-                                                        $date_start = date('Y-01-01', strtotime("{$period_count} year"));
-                                                        $date_end   = date('Y-m-d');
-                                                    }
-                                                    break;
-                                            }
-
-                                            if ($date_start || $date_end) {
-                                                $this->setFilter($key, [$date_start, $date_end]);
+                                            if ($period_dates['start'] || $period_dates['end']) {
+                                                $this->setFilter($key, [$period_dates['start'], $period_dates['end']]);
                                             }
                                         }
                                     }
@@ -1172,5 +1143,57 @@ abstract class Table extends Acl {
             : 0;
 
         return hash('crc32b', $this->resource . implode('', $indicators));
+    }
+
+
+    /**
+     * @param string $period_type
+     * @param int    $period_count
+     * @return array
+     */
+    private function getPeriodDates(string $period_type, int $period_count): array {
+
+        $date_start = null;
+        $date_end   = null;
+
+        switch ($period_type) {
+            case 'days':
+                if ($period_count >= 0) {
+                    $date_start = date('Y-m-d');
+                    $date_end   = date('Y-m-d', strtotime("{$period_count} days"));
+
+                } else {
+                    $date_start = date('Y-m-d', strtotime("{$period_count} days"));
+                    $date_end   = date('Y-m-d');
+                }
+                break;
+
+            case 'month':
+                if ($period_count > 0) {
+                    $date_start = date('Y-m-d');
+                    $date_end   = date('Y-m-t', strtotime("{$period_count} month"));
+
+                } else {
+                    $date_start = date('Y-m-01', strtotime("{$period_count} month"));
+                    $date_end   = date('Y-m-d');
+                }
+                break;
+
+            case 'year':
+                if ($period_count > 0) {
+                    $date_start = date('Y-m-d');
+                    $date_end   = date('Y-12-31', strtotime("{$period_count} year"));
+
+                } else {
+                    $date_start = date('Y-01-01', strtotime("{$period_count} year"));
+                    $date_end   = date('Y-m-d');
+                }
+                break;
+        }
+
+        return [
+            'start' => $date_start,
+            'end'   => $date_end
+        ];
     }
 }
