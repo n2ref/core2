@@ -653,10 +653,10 @@ class CoreController extends Common implements File {
 	}
 
 
-	/**
-	 *
-	 */
-	public function action_welcome () {
+    /**
+     * @throws Exception
+     */
+    public function action_welcome () {
 
 		if (!empty($_POST['sendSupportForm'])) {
 			if (isset($_POST['supportFormModule'])) {
@@ -669,14 +669,10 @@ class CoreController extends Common implements File {
 			} else {
 				$supportFormMessage = '';
 			}
-			$supportFormMessagePost = $supportFormMessage;
 
 			header('Content-type: application/json; charset="utf-8"');
 
 			try {
-//				if (empty($supportFormModule)) {
-//					throw new Exception($this->translate->tr('Выберите модуль.'));
-//				}
 				if (empty($supportFormMessage)) {
 					throw new Exception($this->translate->tr('Введите текст сообщения.'));
 				}
@@ -741,6 +737,57 @@ class CoreController extends Common implements File {
 
             return;
 		}
+
+        if ( ! empty($_GET['error_front']) &&
+             $this->config?->log?->error_front &&
+             $this->config?->log?->error_front?->file &&
+             is_string($this->config?->log?->error_front?->file)
+        ) {
+            $request_raw = file_get_contents('php://input', 'r');
+            $errors      = $request_raw ? json_decode($request_raw, true) : [];
+
+            if ($errors && is_array($errors)) {
+                $i     = 1;
+                $limit = 100;
+                foreach ($errors as $error) {
+                    if ($i >= $limit) {
+                        break;
+                    }
+
+                    if ( ! empty($error['url']) && is_string($error['url']) && mb_strlen($error['url']) > 255) {
+                        $error['url'] = mb_substr($error['url'], 0, 255);
+                    }
+                    if ( ! empty($error['time']) && is_string($error['time']) && mb_strlen($error['time']) > 19) {
+                        $error['time'] = mb_substr($error['time'], 0, 19);
+                    }
+                    if ( ! empty($error['type']) && is_string($error['type']) && mb_strlen($error['type']) > 100) {
+                        $error['type'] = mb_substr($error['type'], 0, 100);
+                    }
+
+                    $level = 'error';
+
+                    if ( ! empty($error['level']) &&
+                         is_string($error['level']) &&
+                         in_array($error['level'], ['warning', 'info', 'error'])
+                    ) {
+                        $level = $error['level'];
+                    }
+
+                    $error_type = ! empty($error['type']) && is_string($error['type']) ? $error['type'] : 'error';
+
+                    $this->log->file($this->config?->log?->error_front?->file)->{$level}($error_type, [
+                        'login'  => $this->auth->NAME,
+                        'time'   => $error['time'] ?? null,
+                        'url'    => $error['url'] ?? null,
+                        'error'  => $error['error'] ?? null,
+                        'client' => $error['client'] ?? null,
+                    ]);
+
+                    $i++;
+                }
+            }
+        }
+
 		if (file_exists('mod/home/welcome.php')) {
 			require_once 'mod/home/welcome.php';
 		}
