@@ -168,8 +168,35 @@ class CommonApi extends \Core2\Acl {
             }
         }
         $h = getallheaders();
-        if ($h['Content-Type'] == 'application/json') {
-            $request_raw = json_decode($request_raw, true);
+
+        switch ($_SERVER['REQUEST_METHOD']) {
+            case 'GET':
+                $request_raw = null;
+                break;
+            case 'POST':
+                if (strpos($h['Content-Type'], 'multipart/form-data') === 0) {
+                    $request_raw = $_POST;
+                }
+                else if (strpos($h['Content-Type'], 'application/x-www-form-urlencoded') === 0) {
+                    $request_raw = $_POST;
+                }
+                else if (strpos($h['Content-Type'], 'application/json') === 0) {
+                    $request_raw = json_decode($request_raw, true);
+                }
+                break;
+            case 'PUT':
+            case 'PATCH':
+            case 'DELETE':
+                if (isset($h['Content-Type'])) {
+                    if (strpos($h['Content-Type'], 'application/x-www-form-urlencoded') === 0) {
+                        parse_str($request_raw, $request_raw);
+                    } else if (strpos($h['Content-Type'], 'application/json') === 0) {
+                        $request_raw = json_decode($request_raw, true);
+                    }
+                }
+                break;
+            default:
+                throw new \Exception('method not handled', 405);
         }
         return $request_raw;
     }
