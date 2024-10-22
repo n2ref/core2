@@ -52,12 +52,7 @@ class Parallel extends Db {
      */
     public function start(\Closure $task_callback = null): array {
 
-        $this->db->closeConnection();
-
-        if ($this->cache->getAdapterName() !== 'Filesystem') {
-            $reg = Registry::getInstance();
-            $reg->set('cache', null);
-        }
+        $this->closeConnections();
 
         $process_count = 0;
         $tasks_result  = [];
@@ -139,6 +134,38 @@ class Parallel extends Db {
         $this->tasks = [];
 
         return $tasks_result;
+    }
+
+
+    /**
+     * Отключение от внешних сервисов
+     * @return void
+     */
+    private function closeConnections(): void {
+
+        $this->db->closeConnection();
+
+        $key = "all_modules_" . $this->config->database->params->dbname;
+
+        if ($this->cache->hasItem($key)) {
+            $modules = $this->cache->getItem($key);
+
+            $reg = Registry::getInstance();
+            foreach ($modules as $module_name => $module) {
+                if ($reg->isRegistered("db|{$module_name}")) {
+                    $db = $reg->get("db|{$module_name}");
+
+                    if ($db instanceof \Zend_Db_Adapter_Abstract && $db->isConnected()) {
+                        $db->closeConnection();
+                    }
+                }
+            }
+        }
+
+        if ($this->cache->getAdapterName() !== 'Filesystem') {
+            $reg = Registry::getInstance();
+            $reg->set('cache', null);
+        }
     }
 
 
