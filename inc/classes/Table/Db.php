@@ -143,20 +143,33 @@ class Db extends Table {
      */
     public function fetchRows(): array {
 
-        if ( ! $this->is_fetched) {
-            $this->preFetchRows();
+        try {
+            if ( ! $this->is_fetched) {
+                $this->preFetchRows();
 
-            $this->is_fetched = true;
+                $this->is_fetched = true;
 
-            if ($this->data instanceof \Zend_Db_Select) {
-                $this->data_rows = $this->fetchDataSelect($this->data);
+                if ($this->data instanceof \Zend_Db_Select) {
+                    $this->data_rows = $this->fetchDataSelect($this->data);
 
-            } elseif ($this->data instanceof \Zend_Db_Table_Abstract) {
-                $this->data_rows = $this->fetchDataTable($this->data);
+                } elseif ($this->data instanceof \Zend_Db_Table_Abstract) {
+                    $this->data_rows = $this->fetchDataTable($this->data);
 
-            } elseif ($this->query) {
-                $this->data_rows = $this->fetchDataQuery($this->query);
+                } elseif ($this->query) {
+                    $this->data_rows = $this->fetchDataQuery($this->query);
+                }
             }
+
+        } catch (\Exception $e) {
+            $this->session->table->search           = [];
+            $this->session->table->filter           = [];
+            $this->session->table->columns          = null;
+            $this->session->table->order            = null;
+            $this->session->table->order_type       = null;
+            $this->session->table->records_per_page = null;
+
+            $this->saveTableState();
+            throw $e;
         }
 
         return $this->data_rows;
@@ -199,6 +212,8 @@ class Db extends Table {
                     if (strpos($field, '/*ADD_SEARCH*/') !== false) {
                         $field = str_replace("/*ADD_SEARCH*/", "ADD_SEARCH", $field);
                     }
+
+                    $value = $this->formatSearchType($type, $value);
 
                     switch ($type) {
                         case self::SEARCH_TEXT:
@@ -299,6 +314,8 @@ class Db extends Table {
                     if (strpos($field, '/*ADD_SEARCH*/') !== false) {
                         $field = str_replace("/*ADD_SEARCH*/", "ADD_SEARCH", $field);
                     }
+
+                    $value = $this->formatSearchType($type, $value);
 
                     switch ($type) {
                         case self::FILTER_TEXT:
@@ -538,6 +555,8 @@ class Db extends Table {
                         $search_field = str_replace("/*ADD_SEARCH*/", "ADD_SEARCH", $search_field);
                     }
 
+                    $search_value = $this->formatSearchType($search_column->getType(), $search_value);
+
                     switch ($search_column->getType()) {
                         case self::SEARCH_DATE:
                         case self::SEARCH_DATETIME:
@@ -644,6 +663,8 @@ class Db extends Table {
                     if (strpos($filter_field, '/*ADD_SEARCH*/') !== false) {
                         $filter_field = str_replace("/*ADD_SEARCH*/", "ADD_SEARCH", $filter_field);
                     }
+
+                    $search_value = $this->formatSearchType($filter_column->getType(), $filter_value);
 
                     switch ($filter_column->getType()) {
                         case self::FILTER_DATE:
@@ -901,5 +922,53 @@ class Db extends Table {
         }
 
         return $result;
+    }
+
+
+    /**
+     * Форматирование поисковых данных
+     * @param string $type
+     * @param mixed  $search_value
+     * @return string
+     */
+    private function formatSearchType(string $type, mixed $search_value): mixed {
+
+        // Проверка формата
+        switch ($type) {
+            case self::SEARCH_DATE:
+            case self::FILTER_DATE:
+                if ( ! empty($search_value[0]) && ! preg_match('~^\d{4}-\d{2}-\d{2}$~', $search_value[0])) {
+                    $search_value[0] = '';
+                }
+                if ( ! empty($search_value[1]) && ! preg_match('~^\d{4}-\d{2}-\d{2}$~', $search_value[1])) {
+                    $search_value[1] = '';
+                }
+                break;
+
+            case self::SEARCH_DATETIME:
+            case self::FILTER_DATETIME:
+                if ( ! empty($search_value[0]) && ! preg_match('~^\d{4}-\d{2}-\d{2}.\d{2}:\d{2}(|:\d{2})$~', $search_value[0])) {
+                    $search_value[0] = '';
+                }
+                if ( ! empty($search_value[1]) && ! preg_match('~^\d{4}-\d{2}-\d{2}.\d{2}:\d{2}(|:\d{2})$~', $search_value[1])) {
+                    $search_value[1] = '';
+                }
+                break;
+
+            case self::SEARCH_DATE_ONE:
+            case self::FILTER_DATE_ONE:
+                if ( ! empty($search_value) && ! preg_match('~^\d{4}-\d{2}-\d{2}$~', $search_value)) {
+                    $search_value = '';
+                }
+                break;
+
+            case self::FILTER_DATE_MONTH:
+                if ( ! empty($search_value) && ! preg_match('~^\d{4}-\d{2}$~', $search_value)) {
+                    $search_value = '';
+                }
+                break;
+        }
+
+        return $search_value;
     }
 }

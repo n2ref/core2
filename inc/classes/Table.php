@@ -1210,7 +1210,7 @@ abstract class Table extends Acl {
      * @throws Exception
      * @throws \Zend_Db_Adapter_Exception
      */
-    private function saveTableState(): void {
+    protected function saveTableState(): void {
 
         if ($profile_controller = $this->getProfileController()) {
 
