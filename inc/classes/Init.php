@@ -1552,7 +1552,7 @@ class Init extends Db {
         //проверяем наличие контроллера для core2m в модулях
         foreach ($modsList as $k => $data) {
             $location      = $this->getModuleLocation($data['module_id']);
-            if ($this->auth->MOBILE) { //признак того, что мы в core2m
+            if (isset($this->auth->MOBILE) && $this->auth->MOBILE) { //признак того, что мы в core2m
                 $controller = "Mobile" . ucfirst(strtolower($data['module_id'])) . "Controller";
             } else {
                 $controller = "Mod" . ucfirst(strtolower($data['module_id'])) . "Api";
