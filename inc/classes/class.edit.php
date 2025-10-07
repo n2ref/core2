@@ -1618,12 +1618,12 @@ class editTable extends initEdit {
                                     if (is_array($options_value)) {
                                         foreach ($options_value as $options_value_id => $options_value_title) {
 
-                                            if ( ! empty($options_value_title['value']) &&
-                                                 in_array($options_value_title['value'], $value['default'])
-                                            ) {
-                                                $options_out[] = $options_value_title['title'] ?? '';
+                                            if ( ! empty($options_value_title['value'])) {
+                                                if (in_array($options_value_title['value'], $value['default'])) {
+                                                    $options_out[] = $options_value_title['title'] ?? '';
+                                                }
 
-                                            } elseif (in_array($options_value_id, $value['default'])) {
+                                            } elseif (in_array($options_value_id, $value['default']) && is_string($options_value_title)) {
                                                 $options_out[] = $options_value_title;
                                             }
                                         }
