@@ -291,7 +291,6 @@ class Menu extends Acl {
     public function getMenuMobile() {
 
 
-
         $mods     = $this->getModuleList();
         $modsList = [];
 
@@ -340,6 +339,7 @@ class Menu extends Acl {
                 }
             }
         }
+        $modsList = array_values($modsList);
         $data = [
             'system_name' => strip_tags($this->getSystemName()),
             'id'          => $this->auth->ID,
