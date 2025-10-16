@@ -2091,35 +2091,44 @@ class editTable extends initEdit {
 						elseif ($value['type'] == self::TYPE_XFILE || $value['type'] == self::TYPE_XFILES) {
 							[$module, $action] = Registry::get('context');
 							if ($this->readOnly || in_array($field, $this->read_only_fields)) {
-								$files = $this->db->fetchAll("
+                                $files = $this->db->fetchAll("
                                     SELECT id, 
                                            filename,
                                            type 
                                     FROM `{$this->table}_files` 
                                     WHERE refid = ?
                                       AND fieldid = ?
-                                ", array(
+                                ", [
                                     $refid,
-                                    $value['default']
-                                ));
+                                    $value['default'],
+                                ]);
 
-								if ($files) {
-									foreach ($files as $file) {
-									    if (in_array($file['type'], array('image/jpeg', 'image/png', 'image/gif'))) {
-                                            $controlGroups[$cellId]['html'][$key] .=
-                                                "<div class=\"fileupload-file-readonly\">" .
-                                                    "<a href=\"index.php?module={$module}&fileid={$file['id']}&filehandler={$this->table}\">" .
-                                                        "<img class=\"img-rounded\" src=\"index.php?module={$module}&filehandler={$this->table}&thumbid={$file['id']}\" alt=\"{$file['filename']}\">" .
-                                                    "</a>" .
-                                                "</div>";
+                                if ($files) {
+                                    $thumb_url    = $value['in']['thumb_url']    ?? "index.php?module={$module}&filehandler={$this->table}&thumbid={file_id}";
+                                    $download_url = $value['in']['download_url'] ?? "index.php?module={$module}&fileid={file_id}&filehandler={$this->table}";
+
+                                    foreach ($files as $file) {
+                                        $thumb_url_file    = str_replace("{file_id}", $file['id'], $thumb_url);
+                                        $download_url_file = str_replace("{file_id}", $file['id'], $download_url);
+
+                                        if (in_array($file['type'], ['image/jpeg', 'image/png', 'image/gif'])) {
+                                            $controlGroups[$cellId]['html'][$key]
+                                                .= "<div class=\"fileupload-file-readonly\">" .
+                                                       "<a href=\"{$download_url_file}\">" .
+                                                            "<img class=\"img-rounded\" src=\"{$thumb_url_file}\" alt=\"{$file['filename']}\">" .
+                                                       "</a>" .
+                                                   "</div>";
                                         } else {
-                                            $controlGroups[$cellId]['html'][$key] .= "<div class=\"fileupload-file-readonly\"><i class=\"fa fa-file-text-o\"></i> <a href=\"index.php?module={$module}&fileid={$file['id']}&filehandler={$this->table}\">{$file['filename']}</a></div>";
+                                            $controlGroups[$cellId]['html'][$key]
+                                                .= "<div class=\"fileupload-file-readonly\">" .
+                                                        "<i class=\"fa fa-file-text-o\"></i> <a href=\"{$download_url_file}\">{$file['filename']}</a>" .
+                                                   "</div>";
                                         }
-									}
-								} else {
-									$controlGroups[$cellId]['html'][$key] .= '<i>нет прикрепленных файлов</i>';
-								}
-							}
+                                    }
+                                } else {
+                                    $controlGroups[$cellId]['html'][$key] .= '<i>нет прикрепленных файлов</i>';
+                                }
+                            }
                             else {
                                 $this->scripts['upload'] = "xfile";
                                 $this->HTML = str_replace('[_ACTION_]', 'index.php?module=admin&loc=core&action=upload', $this->HTML);
