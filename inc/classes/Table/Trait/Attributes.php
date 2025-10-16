@@ -86,7 +86,7 @@ trait Attributes {
             if (array_key_exists($name, $this->attr)) {
                 $value_quote = preg_quote($value);
 
-                if (preg_match("~(^| ){$value_quote}( |$)~", $this->attr[$name]) === false) {
+                if (preg_match("~(^| ){$value_quote}( |$)~", $this->attr[$name]) === 0) {
                     $this->attr[$name] .= " {$value}";
                 }
 
