@@ -1904,7 +1904,7 @@ class editTable extends initEdit {
                                     foreach ($datasets as $dataset) {
 
                                         foreach ($item_fields as $item_field) {
-                                            if ($item_field['type'] == 'hidden') {
+                                            if ( ! empty($item_field['type']) && $item_field['type'] == 'hidden') {
                                                 continue;
                                             }
 
