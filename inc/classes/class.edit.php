@@ -2303,11 +2303,13 @@ if ( ! empty($ft)) {
         $('#fileupload-{$un}').bind('fileuploadadd', function (e, data) {
             var acceptFileTypes = /\.($ft)$/i;
 			var fileName        = data.originalFiles[0].name || data.originalFiles[0].fileName;
+			var needTypes       = '$ft'.split('|').join(', ');		
+			
 			if (!acceptFileTypes.test(fileName)) {
 			    if ($(this).find('.files > tr').length <= 0) {
 				    $('#fileupload-$fieldId div.fileupload-buttonbar button.start').addClass('hide');
 				}
-				alert('Файл \"' + fileName + '\" имеет некорректное расширение.');
+				alert('Файл \"' + fileName + '\" имеет некорректное расширение. Доступные форматы: ' + needTypes);
 				return false;
 			}
         });
