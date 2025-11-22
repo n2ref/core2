@@ -169,8 +169,8 @@ require_once 'Acl.php';
 require_once 'Common.php';
 require_once 'SSE.php';
 
+
 /**
- * Class Init
  * @property Core2\Model\Modules $dataModules
  */
 class Init extends Acl {
@@ -179,9 +179,6 @@ class Init extends Acl {
      * @var StdClass|Zend_Session_Namespace
      */
     private $auth;
-
-    protected $is_rest = array();
-    protected $is_soap = array();
 
 
     /**

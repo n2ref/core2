@@ -1,106 +1,12 @@
 <?php
 namespace Core2;
 require_once 'Db.php';
-use OpenApi\Attributes as OAT;
 
-#[OAT\OpenApi(
-    security: [['bearerAuth' => []]]
-)]
-#[OAT\Info(
-    version: '2.9.0',
-    description: 'Common API',
-    title: 'CORE2',
-    contact: new OAT\Contact(
-        name: 'mister easter',
-        email: 'easter.by@gmail.com'
-    )
-)]
-#[OAT\Server(url: SERVER)]
-#[OAT\Components(securitySchemes: [
-        new OAT\SecurityScheme(
-            type: "http",
-            securityScheme: "bearerAuth",
-            scheme: "bearer",
-            in: "header",
-            bearerFormat: "JWT"
-        ),
-        new OAT\SecurityScheme(
-            type: "http",
-            securityScheme: "basicAuth",
-            scheme: "basic",
-        )
-    ]
-)]
+
 /**
  * @property \Core2\Model\Modules $dataModules
  */
 class OpenApiSpec extends Db {
-
-    private $_apis = [__FILE__];
-
-    #[OAT\Get(
-        path: '/',
-        operationId: 'getModules',
-        summary: 'Данные для главного меню',
-        tags: ['core2'],
-        responses: [
-            new OAT\Response(
-                response: 200,
-                description: 'информация о пользователе и список доступных модулей',
-                content: new OAT\JsonContent(
-                    type: 'object',
-                    properties: [
-                        new OAT\Property(property: 'system_name', type: 'string', title: 'Название системы'),
-                        new OAT\Property(property: 'id', type: 'integer', title: 'ID текущего пользователя'),
-                        new OAT\Property(property: 'name', type: 'string', title: 'Имя текущего пользователя'),
-                        new OAT\Property(property: 'login', type: 'string', title: 'Login текущего пользователя'),
-                        new OAT\Property(property: 'avatar', type: 'string', title: 'ссылка на аватар'),
-                        new OAT\Property(property: 'required_location', type: 'boolean', title: 'должен ли пользователь предоставить данные о местоположении'),
-                        new OAT\Property(property: 'modules', title: 'System admin', type: 'object'),
-                    ]
-
-                ),
-            ),
-            new OAT\Response(
-                response: 403,
-                description: 'Unauthorized access',
-            ),
-        ]
-    )]
-
-    /**
-     * @return string
-     * @throws \Exception
-     * @deprecated
-     */
-    public function render(): string {
-
-
-        $this->module = 'admin';
-        $mods     = $this->dataModules->getModuleList();
-        foreach ($mods as $k => $data) {
-            if (isset($this->_apis[$data['module_id']])) continue;
-            $location      = $this->getModuleLocation($data['module_id']);
-            $controller = "Mod" . ucfirst(strtolower($data['module_id'])) . "Api";
-            if ( file_exists($location . "/$controller.php")) {
-                require_once $location . "/$controller.php";
-                $this->_apis[$data['module_id']] = $location . "/$controller.php";
-            }
-        }
-        $admin = 'core2/mod/admin/ModAdminApi.php';
-        require_once $admin;
-        $this->_apis[] = $admin;
-        define("SERVER", (!empty($_SERVER['HTTPS']) ? 'https://' : 'http://') . $_SERVER['SERVER_NAME'] . DOC_PATH);
-
-        $openapi = \OpenApi\Generator::scan($this->_apis,
-            ['exclude' => ['vendor'], 'pattern' => '*.php']
-        );
-
-        header('Content-Type: application/json');
-        echo $openapi->toJson();
-        return "";
-    }
-
 
     /**
      * @return array
@@ -120,14 +26,26 @@ class OpenApiSpec extends Db {
                 continue;
             }
 
-            $location   = $this->getModuleLocation($mod['module_id']);
-            $controller = "Mod" . ucfirst(strtolower($mod['module_id'])) . "Api";
+            $location        = $this->getModuleLocation($mod['module_id']);
+            $controller_path = "{$location}/Mod" . ucfirst(strtolower($mod['module_id'])) . "Api.php";
 
-            if (file_exists("{$location}/{$controller}.php") && file_exists("{$location}/Api/schema.json")) {
-                $sections[$mod['module_id']] = [
-                    'name'  => $mod['module_id'],
-                    'title' => trim(strip_tags($mod['m_name']))
-                ];
+            if (file_exists($controller_path)) {
+                if (file_exists("{$location}/Api/schema.json")) {
+                    $sections[$mod['module_id']] = [
+                        'name'  => $mod['module_id'],
+                        'title' => trim(strip_tags($mod['m_name']))
+                    ];
+
+                } else {
+                    $section_scheme = (\OpenApi\Generator::scan([$controller_path]))->toJson();
+
+                    if ( ! empty($section_scheme)) {
+                        $sections[$mod['module_id']] = [
+                            'name'  => $mod['module_id'],
+                            'title' => trim(strip_tags($mod['m_name']))
+                        ];
+                    }
+                }
             }
         }
 
@@ -142,10 +60,9 @@ class OpenApiSpec extends Db {
      */
     public function getSectionSchema(string $section): array {
 
-        $file_schema = '';
-
         if ($section == 'core2') {
-            $file_schema = __DIR__ . '/../../schema.json';
+            $schema_content = file_get_contents(__DIR__ . '/../../schema.json');
+            $section_schema = json_decode($schema_content, true);
 
         } else {
             $mods = $this->dataModules->getModuleList();
@@ -155,18 +72,26 @@ class OpenApiSpec extends Db {
 
                     $location    = $this->getModuleLocation($mod['module_id']);
                     $file_schema = "{$location}/Api/schema.json";
+
+                    if (file_exists($file_schema)) {
+                        $schema_content = file_get_contents($file_schema);
+                        $section_schema = json_decode($schema_content, true);
+
+                    } else {
+                        $controller      = "Mod" . ucfirst(strtolower($mod['module_id'])) . "Api";
+                        $controller_path = "{$location}/{$controller}.php";
+
+                        if (file_exists($controller_path)) {
+                            $section_schema = (\OpenApi\Generator::scan([$controller_path]))->toJson();
+                        }
+                    }
                     break;
                 }
             }
         }
 
-        if (file_exists($file_schema)) {
-            $schema_content = file_get_contents($file_schema);
-            $schema         = json_decode($schema_content, true);
 
-            if ( ! is_array($schema)) {
-                return [];
-            }
+        if ( ! empty($section_schema) && ! is_array($section_schema)) {
 
             $current_server = "{$_SERVER['REQUEST_SCHEME']}://{$_SERVER['HTTP_HOST']}";
 
@@ -174,8 +99,8 @@ class OpenApiSpec extends Db {
                 [ 'url' => $current_server ]
             ];
 
-            if ( ! empty($schema['servers']) && is_array($schema['servers'])) {
-                foreach ($schema['servers'] as $server) {
+            if ( ! empty($section_schema['servers']) && is_array($section_schema['servers'])) {
+                foreach ($section_schema['servers'] as $server) {
                     if ( ! empty($server['url']) &&
                          ! $current_server != $server['url']
                     ) {
@@ -184,9 +109,9 @@ class OpenApiSpec extends Db {
                 }
             }
 
-            $schema['servers'] = $servers;
+            $section_schema['servers'] = $servers;
 
-            return $schema;
+            return $section_schema;
         }
 
         return [];
