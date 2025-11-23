@@ -100,7 +100,8 @@ class OpenApiSpec extends Db {
 
         if ( ! empty($section_schema) && is_array($section_schema)) {
 
-            $current_server = "{$_SERVER['REQUEST_SCHEME']}://{$_SERVER['HTTP_HOST']}";
+            $current_server = "{$_SERVER['REQUEST_SCHEME']}://{$_SERVER['HTTP_HOST']}" . DOC_PATH;
+            $current_server = rtrim($current_server, '/');
 
             $servers = [
                 [ 'url' => $current_server ]
@@ -108,9 +109,7 @@ class OpenApiSpec extends Db {
 
             if ( ! empty($section_schema['servers']) && is_array($section_schema['servers'])) {
                 foreach ($section_schema['servers'] as $server) {
-                    if ( ! empty($server['url']) &&
-                         ! $current_server != $server['url']
-                    ) {
+                    if ( ! empty($server['url']) && $current_server != rtrim($server['url'], '/')) {
                         $servers[] = $server;
                     }
                 }
