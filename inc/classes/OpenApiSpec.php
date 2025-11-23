@@ -18,14 +18,14 @@ class OpenApiSpec extends Db {
             [ 'name' => 'core2', 'title' => 'Core2', ]
         ];
 
-        $mods = $this->dataModules->getModuleList();
+        $modules_list = $this->dataModules->getModuleList();
+        $modules      = [];
 
-        foreach ($mods as $mod) {
+        foreach ($modules_list as $module) {
+            $modules[$module['module_id']] = $module;
+        }
 
-            if (isset($sections[$mod['module_id']])) {
-                continue;
-            }
-
+        foreach ($modules as $mod) {
             $location        = $this->getModuleLocation($mod['module_id']);
             $controller_path = "{$location}/Mod" . ucfirst(strtolower($mod['module_id'])) . "Api.php";
 
@@ -37,17 +37,24 @@ class OpenApiSpec extends Db {
                     ];
 
                 } else {
-                    $section_scheme = (\OpenApi\Generator::scan([$controller_path]))->toJson();
+                    require_once $controller_path;
+                    $openapi        = \OpenApi\Generator::scan([$controller_path], ['exclude' => ['vendor'], 'pattern' => '*.php']);
+                    $section_scheme = ($openapi)->toJson();
 
                     if ( ! empty($section_scheme)) {
-                        $sections[$mod['module_id']] = [
-                            'name'  => $mod['module_id'],
-                            'title' => trim(strip_tags($mod['m_name']))
-                        ];
+                        $section_scheme = json_decode($section_scheme, true);
+
+                        if (count($section_scheme) > 1) {
+                            $sections[$mod['module_id']] = [
+                                'name'  => $mod['module_id'],
+                                'title' => trim(strip_tags($mod['m_name']))
+                            ];
+                        }
                     }
                 }
             }
         }
+
 
         return array_values($sections);
     }
@@ -91,7 +98,7 @@ class OpenApiSpec extends Db {
         }
 
 
-        if ( ! empty($section_schema) && ! is_array($section_schema)) {
+        if ( ! empty($section_schema) && is_array($section_schema)) {
 
             $current_server = "{$_SERVER['REQUEST_SCHEME']}://{$_SERVER['HTTP_HOST']}";
 
