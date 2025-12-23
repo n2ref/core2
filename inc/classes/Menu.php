@@ -214,7 +214,7 @@ class Menu extends Acl {
                             case 'profile':
                                 if ($tpl_menu->issetBlock('navigate_item_profile')) {
                                     $tpl_menu->navigate_item_profile->assign('[MODULE_NAME]', $item['module_name']);
-                                    $tpl_menu->navigate_item_profile->assign('[HTML]',        $nav->renderNavigateItem($item));
+                                    $tpl_menu->navigate_item_profile->assign('[HTML]',        $nav->renderNavigateItem($item, 'profile'));
                                     $tpl_menu->navigate_item_profile->reassign();
                                 }
                                 break;

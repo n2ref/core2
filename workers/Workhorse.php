@@ -16,6 +16,7 @@ class Workhorse
     public function __construct()
     {
         $this->_config = Registry::get('config');
+        Registry::set('worker', []);
     }
 
     public function run(\GearmanJob|Job $job, &$log) {
@@ -28,9 +29,14 @@ class Workhorse
         }
         $_SERVER = get_object_vars($workload->server);
         $id = $_SERVER['SERVER_NAME'] . "|" . $job->unique();
+
         // Определяем DOCUMENT_ROOT (для прямых вызовов, например cron)
-        if (!defined("DOC_ROOT")) define("DOC_ROOT", dirname(str_replace("//", "/", $_SERVER['SCRIPT_FILENAME'])) . "/");
-        if (!defined("DOC_PATH")) define("DOC_PATH", substr(DOC_ROOT, strlen(rtrim($_SERVER['DOCUMENT_ROOT'], '/'))) ? : '/');
+        if (!defined("DOC_ROOT")) {
+            define("DOC_ROOT", dirname(str_replace("//", "/", $_SERVER['SCRIPT_FILENAME'])) . "/");
+        }
+        if (!defined("DOC_PATH")) {
+            define("DOC_PATH", substr(DOC_ROOT, strlen(rtrim($_SERVER['DOCUMENT_ROOT'], '/'))) ? : '/');
+        }
 
         //$workload_size = $job->workloadSize();
 
@@ -50,12 +56,21 @@ class Workhorse
             $controller = $this->requireController($workload->module, $workload->location);
             $action     = $workload->worker;
 
-            $db->db->insert("core_worker_jobs", [
+            $data = [
                 'id' => $id,
                 'time_start' => (new \DateTime())->format("Y-m-d H:i:s"),
                 'handler' => $handler,
                 'status' => 'start',
                 'executor' => "$controller->$action",
+            ];
+
+            $db->db->insert("core_worker_jobs", $data);
+
+            Registry::set('worker', [
+                'request' => $_SERVER['REQUEST_URI'] ?? '',
+                'module' => $workload->module,
+                'action' => $action,
+                'job' => $id,
             ]);
 
             $error = null;
