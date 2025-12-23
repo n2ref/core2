@@ -193,6 +193,37 @@ class Request {
     /**
      * @return array
      */
+    public function getFilesNormalize(): array {
+
+        $files = $this->props['FILES'] ?? [];
+
+        $files_normalized = [];
+
+        foreach ($files as $index => $file) {
+
+            if ( ! is_array($file['name'])) {
+                $files_normalized[$index][] = $file;
+                continue;
+            }
+
+            foreach ($file['name'] as $idx => $name) {
+                $files_normalized[$index][$idx] = [
+                    'name'     => $name,
+                    'type'     => $file['type'][$idx],
+                    'tmp_name' => $file['tmp_name'][$idx],
+                    'error'    => $file['error'][$idx],
+                    'size'     => $file['size'][$idx],
+                ];
+            }
+        }
+
+        return $files_normalized;
+    }
+
+
+    /**
+     * @return array
+     */
     public function getCookie(): array {
 
         return $this->props['COOKIE'] ?? [];
