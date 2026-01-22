@@ -298,6 +298,7 @@ class Init extends Acl {
                     if ($route['action'] == 'sections') {
                         header('Content-Type: application/json');
 
+                        $this->setupAcl();
                         if ( ! empty($route['params'])) {
                             $section = key($route['params']);
                             return json_encode($schema->getSectionSchema($section));

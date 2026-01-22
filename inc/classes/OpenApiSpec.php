@@ -23,7 +23,9 @@ class OpenApiSpec extends Acl {
         $modules      = [];
 
         foreach ($modules_list as $module) {
-            $modules[$module['module_id']] = $module;
+            if ($this->checkAcl($module['module_id'])) {
+                $modules[$module['module_id']] = $module;
+            }
         }
 
         foreach ($modules as $mod) {
@@ -79,7 +81,7 @@ class OpenApiSpec extends Acl {
             $mods = $this->dataModules->getModuleList();
 
             foreach ($mods as $mod) {
-                if ($mod['module_id'] == $section) {
+                if ($mod['module_id'] == $section && $this->checkAcl($mod['module_id'])) {
                     $section_schema = $this->getSchemeModule($mod['module_id']);
                     break;
                 }
@@ -135,10 +137,12 @@ class OpenApiSpec extends Acl {
         $mods = $this->dataModules->getModuleList();
 
         foreach ($mods as $mod) {
-            $scheme_module = $this->getSchemeModule($mod['module_id']);
+            if ($this->checkAcl($mod['module_id'])) {
+                $scheme_module = $this->getSchemeModule($mod['module_id']);
 
-            if ($scheme_module) {
-                $sections[] = ['title' => $mod['m_name'], 'scheme' => $scheme_module];
+                if ($scheme_module) {
+                    $sections[] = ['title' => $mod['m_name'], 'scheme' => $scheme_module];
+                }
             }
         }
 
