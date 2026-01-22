@@ -1,12 +1,12 @@
 <?php
 namespace Core2;
-require_once 'Db.php';
+require_once 'Acl.php';
 
 
 /**
  * @property \Core2\Model\Modules $dataModules
  */
-class OpenApiSpec extends Db {
+class OpenApiSpec extends Acl {
 
     /**
      * @return array
