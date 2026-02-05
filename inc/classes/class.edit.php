@@ -2179,6 +2179,9 @@ class editTable extends initEdit {
 									if ( ! empty($value['in']['maxFileSize'])) {
 										$options['maxFileSize'] = $value['in']['maxFileSize'];
 									}
+									if ( ! empty($value['in']['limitConcurrentUploads'])) {
+										$options['limitConcurrentUploads'] = $value['in']['limitConcurrentUploads'];
+									}
 									if ( ! empty($value['in']['acceptFileTypes'])) {
 										$ft = str_replace(",", "|", $value['in']['acceptFileTypes']);
 										$options['acceptFileTypes'] = "_FT_";
