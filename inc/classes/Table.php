@@ -63,6 +63,7 @@ abstract class Table extends Acl {
     protected $max_height               = null;
     protected $is_ajax                  = false;
     protected $is_round_calc            = false;
+    protected $is_overflow              = false;
     protected $head_top                 = false;
     protected $deleteKey                = '';
     protected $table                    = '';
@@ -285,6 +286,14 @@ abstract class Table extends Acl {
      */
     public function setAddUrl(string $add_url) {
         $this->add_url = $add_url;
+    }
+
+
+    /**
+     * @param bool $is_overflow
+     */
+    public function setOverflow(bool $is_overflow): void {
+        $this->is_overflow = $is_overflow;
     }
 
 
@@ -896,9 +905,9 @@ abstract class Table extends Acl {
             'recordsTotalMore'   => $this->records_total_more,
             'recordsPerPageList' => $per_page_list,
             'max_height'         => $this->max_height,
+            'is_overflow'        => $this->is_overflow,
             'records'            => $records,
         ];
-
 
         if ($this->edit_url) {
             $data['recordsEditUrl'] = $this->edit_url;
