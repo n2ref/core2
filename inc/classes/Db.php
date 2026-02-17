@@ -329,14 +329,19 @@ class Db {
      * @throws \Zend_Db_Exception
      */
 	protected function getConnection(LaminasConfig $database): \Zend_Db_Adapter_Abstract {
+        $params = $database->params->toArray();
         if ($database->adapter === 'Pdo_Mysql') {
-            $this->schemaName = $database->params->dbname ? $database->params->dbname : '';
+            $params['adapterNamespace'] = 'Core_Db_Adapter';
+            require_once("Core_Db_Adapter_Pdo_Mysql.php");
+            $this->schemaName = $params['dbname'] ?? '';
         }
         elseif ($database->adapter === 'Pdo_Pgsql') {
-            $this->schemaName = $database->schema;
+            $params['adapterNamespace'] = 'Zend_Db_Adapter';
+            $params['dbname'] = $params['pgname'] ?? 'postgres';
+            $this->schemaName = $params['dbname'];
         }
         Registry::set('dbschema', $this->schemaName);
-        $db = \Zend_Db::factory($database->adapter, $database->params->toArray());
+        $db = \Zend_Db::factory($database->adapter, $params);
         $db->getConnection();
         return $db;
     }
@@ -643,16 +648,17 @@ class Db {
 
 
 	/**
+     * Проверка активности модуля
 	 * @param string $module_id
 	 * @return string
 	 */
 	final public function isModuleActive(string $module_id): bool {
         $id = explode("_", strtolower($module_id));
         $mod = $this->getModule($id[0]);
-        if (!$mod) return false;
+        if (!$mod || $mod['visible'] !== 'Y') return false;
         if (!empty($id[1])) {
-            if (empty(Registry::get("_modules")[$id[0]]['submodules'][$id[1]]) ||
-                Registry::get("_modules")[$id[0]]['submodules'][$id[1]]['visible'] !== 'Y') return false;
+            if (empty($mod['submodules'][$id[1]]) ||
+                $mod['submodules'][$id[1]]['visible'] !== 'Y') return false;
         }
         return true;
 	}
