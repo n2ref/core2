@@ -138,14 +138,42 @@ class Api extends Acl
             if ($auth->log_request) {
                 $spent_time = microtime(true) - $spent_time;
 
-                $auth->log_request->update([
-                    'output_headers'   => json_encode(headers_list()),
-                    'output_data'      => $result,
-                    'mem_peak'         => memory_get_peak_usage(true),
-                    'output_http_code' => http_response_code(),
-                    'output_size'      => isset($result) ? strlen($result) : 0,
-                    'spent_time'       => $spent_time,
-                ]);
+                if ($auth->log_request->apikey) {
+                    $reg_apikey = $this->db->fetchRow("
+                        SELECT wr.is_log_output_sw,
+                               wr.is_log_output_header_sw
+                        FROM mod_webservice_apikeys AS wa
+                            JOIN mod_webservice_regapikeys AS wr ON wa.parent_id = wr.id
+                        WHERE wa.apikey = ? 
+                    ", $auth->log_request->apikey);
+
+                } elseif ($auth->log_request->webtoken) {
+                    $reg_apikey = $this->db->fetchRow("
+                        SELECT wr.is_log_output_sw,
+                               wr.is_log_output_header_sw
+                        FROM mod_webservice_webtokens AS ww
+                            JOIN mod_webservice_regapikeys AS wr ON ww.parent_id = wr.id
+                        WHERE ww.token = ? 
+                    ", $auth->log_request->webtoken);
+
+                } else {
+                    $reg_apikey = null;
+                }
+
+                $log_data = [];
+
+                if ($reg_apikey && $reg_apikey['is_log_output_sw'] == 'Y') {
+                    $log_data['output_data'] = $result;
+                }
+                if ($reg_apikey && $reg_apikey['is_log_output_header_sw'] == 'Y') {
+                    $log_data['output_headers'] = json_encode(headers_list());
+                }
+
+                $log_data['mem_peak']         = memory_get_peak_usage(true);
+                $log_data['output_http_code'] = http_response_code();
+                $log_data['output_size']      = isset($result) ? strlen($result) : 0;
+                $log_data['spent_time']       = $spent_time;
+                $auth->log_request->update($log_data);
             }
         }
 

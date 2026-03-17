@@ -27,20 +27,20 @@ require_once 'Registry.php';
 require_once 'Config.php';
 require_once("Router.php");
 
-use Laminas\Session\Config\SessionConfig;
-use Laminas\Session\SessionManager;
-use Laminas\Session\SaveHandler\Cache AS SessionHandlerCache;
-use Laminas\Session\Container as SessionContainer;
-use Laminas\Session\Validator\HttpUserAgent;
-use Laminas\Cache\Storage;
 use Core2\Acl;
+use Core2\Error;
 use Core2\I18n;
 use Core2\Login;
 use Core2\Registry;
-use Core2\Tool;
-use Core2\Error;
-use Core2\Theme;
 use Core2\Router;
+use Core2\Theme;
+use Core2\Tool;
+use Laminas\Cache\Storage;
+use Laminas\Session\Config\SessionConfig;
+use Laminas\Session\Container as SessionContainer;
+use Laminas\Session\SaveHandler\Cache as SessionHandlerCache;
+use Laminas\Session\SessionManager;
+use Laminas\Session\Validator\HttpUserAgent;
 
 
 $conf_file = DOC_ROOT . "conf.ini";
