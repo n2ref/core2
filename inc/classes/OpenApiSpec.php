@@ -46,7 +46,18 @@ class OpenApiSpec extends Acl {
 
                 } else {
                     if ($this->issetSwaggerAnnotationsInFile($controller_path)) {
-                        $openapi        = \OpenApi\Generator::scan([$controller_path], ['exclude' => ['vendor'], 'pattern' => '*.php']);
+                        require_once $controller_path;
+                        $scan = [__DIR__ . "/OpenApi.php", $controller_path];
+                        if (is_dir("{$location}/Api")) {
+                            // Добавляем все PHP файлы из папки Api
+                            $apiFiles = glob("{$location}/Api/*.php");
+                            if ($apiFiles) {
+                                foreach ($apiFiles as $apiFile) {
+                                    $scan[] = $apiFile;
+                                }
+                            }
+                        }
+                        $openapi        = (new Generator())->generate(new SourceFinder($scan, ['vendor'], '*.php'));
                         $section_scheme = $openapi->toJson();
 
                         if ( ! empty($section_scheme)) {
@@ -209,72 +220,6 @@ class OpenApiSpec extends Acl {
         $location    = $this->getModuleLocation($module_name);
         $file_schema = "{$location}/Api/schema.json";
 
-        if (file_exists($file_schema)) {
-            $schema_content = file_get_contents($file_schema);
-            $section_schema = json_decode($schema_content, true);
-
-        } else {
-            $controller      = "Mod" . ucfirst(strtolower($module_name)) . "Api";
-            $controller_path = "{$location}/{$controller}.php";
-
-
-        $result = $sections[0]['scheme'];
-        $result['info']['title'] = $this->config->system->name;
-
-        foreach ($sections as $section) {
-
-            $scheme        = $section['scheme'];
-            $section_title = trim(strip_tags($section['title']));
-
-            if ( ! empty($scheme['components']) && ! empty($scheme['components']['schemas'])) {
-                foreach ($scheme['components']['schemas'] as $component_name => $component_schema) {
-
-                    if (empty($result['components']['schemas'][$component_name])) {
-                        $result['components']['schemas'][$component_name] = $component_schema;
-                    }
-                }
-            }
-
-            if ( ! empty($scheme['paths'])) {
-                foreach ($scheme['paths'] as $path => $path_schema) {
-
-                    if (empty($result['paths'][$path])) {
-
-                        foreach ($path_schema as $http_method => $method_scheme) {
-                            $tags = ! empty($method_scheme['tags']) ? $method_scheme['tags'] : [];
-
-                            if ( ! empty($tags[0])) {
-                                if ( ! str_starts_with($tags[0], $section_title)) {
-                                    $tags[0] = "{$section_title} - {$tags[0]}";
-                                }
-
-                            } else {
-                                $tags[0] = $section_title;
-                            }
-
-                            $path_schema[$http_method]['tags'] = $tags;
-                        }
-
-                        $result['paths'][$path] = $path_schema;
-                    }
-                }
-            }
-        }
-
-        return $result;
-    }
-
-
-    /**
-     * @param string $module_name
-     * @return array
-     * @throws \Exception
-     */
-    private function getSchemeModule(string $module_name): array {
-
-        $location    = $this->getModuleLocation($module_name);
-        $file_schema = "{$location}/Api/schema.json";
-
         $section_schema = [];
         if (file_exists($file_schema)) {
             $schema_content = file_get_contents($file_schema);
@@ -313,60 +258,10 @@ class OpenApiSpec extends Acl {
             $section_schema['components'] = array_merge($section_schema['components'], $schema['components']);
         }
 
-            if (file_exists($controller_path) && $this->issetSwaggerAnnotationsInFile($controller_path)) {
-                $section_schema = (\OpenApi\Generator::scan([$controller_path]))->toJson();
-            }
-        }
         return $section_schema;
     }
 
-        return ! empty($section_schema)
-            ? $section_schema
-            : [];
-    }
 
-
-    /**
-     * @param array $schemes
-     * @return array
-     */
-    private function mergeSchemes(array $schemes): array {
-
-    }
-
-
-    /**
-     * @param string $filePath
-     * @return bool
-     */
-    private function issetSwaggerAnnotationsInFile(string $filePath): bool {
-
-        try {
-            $context  = new \OpenApi\Context(['filename' => $filePath]);
-            $analysis = new \OpenApi\Analysis([], $context);
-            $analyser = new \OpenApi\Analysers\ReflectionAnalyser();
-
-            $analysis->addAnalysis($analyser->fromFile($filePath, $context));
-
-            $operations = $analysis->getAnnotationsOfType([
-                \OpenApi\Annotations\Get::class,
-                \OpenApi\Annotations\Post::class,
-                \OpenApi\Annotations\Put::class,
-                \OpenApi\Annotations\Delete::class,
-                \OpenApi\Annotations\Patch::class,
-                \OpenApi\Annotations\Options::class,
-                \OpenApi\Annotations\Head::class,
-                \OpenApi\Annotations\Trace::class,
-            ]);
-
-            return count($operations) > 0;
-
-        } catch (\Exception $e) {
-            // ignore
-        }
-
-        return false;
-    }
     /**
      * @param string $filePath
      * @return bool
