@@ -93,34 +93,34 @@ try {
 
     $section = !empty($_SERVER['SERVER_NAME']) ? $_SERVER['SERVER_NAME'] : 'production';
 
-    $conf        = new Core2\Config($config_origin);
-    $core_config = $conf->getData()->merge($conf->readIni($conf_file, $section));
+    $conf          = new Core2\Config($config_origin);
+    $system_config = $conf->getData()->merge($conf->readIni($conf_file, $section));
 
 
 
     $conf_d = __DIR__ . "/../../conf.ext.ini";
     if (file_exists($conf_d)) {
-        $core_config->merge($conf->readIni($conf_d, $section));
+        $system_config->merge($conf->readIni($conf_d, $section));
     }
 
     if (empty($_SERVER['HTTPS'])) {
-        if (isset($core_config->system) && ! empty($core_config->system->https)) {
+        if (isset($system_config->system) && ! empty($system_config->system->https)) {
             header('Location: https://' . $_SERVER['SERVER_NAME']);
             exit(); // TODO нужно убрать
         }
     }
-    $tz = $core_config->system->timezone;
+    $tz = $system_config->system->timezone;
     if (!empty($tz)) {
         date_default_timezone_set($tz);
     }
-    if (!$core_config) throw new Exception("Unable to load configuration.");
+    if (!$system_config) throw new Exception("Unable to load configuration.");
 }
 catch (Exception $e) {
     Error::Exception($e->getMessage());
 }
 
 // отладка приложения
-if ($core_config->debug->on) {
+if ($system_config->debug->on) {
     error_reporting(E_ALL);
     ini_set('display_errors', 1);
 } else {
@@ -128,17 +128,17 @@ if ($core_config->debug->on) {
 }
 
 //проверяем настройки для базы данных
-if ($core_config->database) {
-    if (empty($core_config->database->adapter)) {
+if ($system_config->database) {
+    if (empty($system_config->database->adapter)) {
         Error::Exception('Database adapter is empty!');
     }
-    if (empty($core_config->database->params->dbname)) {
+    if (empty($system_config->database->params->dbname)) {
         Error::Exception('Database name is empty!');
     }
 }
 
 //конфиг стал только для чтения
-$core_config->setReadOnly();
+$system_config->setReadOnly();
 
 
 if (isset($config->include_path) && $config->include_path) {
