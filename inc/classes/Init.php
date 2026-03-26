@@ -93,33 +93,34 @@ try {
 
     $section = !empty($_SERVER['SERVER_NAME']) ? $_SERVER['SERVER_NAME'] : 'production';
 
-    $conf     = new Core2\Config($config_origin);
-    $config   = $conf->getData()->merge($conf->readIni($conf_file, $section));
+    $conf        = new Core2\Config($config_origin);
+    $core_config = $conf->getData()->merge($conf->readIni($conf_file, $section));
+
 
 
     $conf_d = __DIR__ . "/../../conf.ext.ini";
     if (file_exists($conf_d)) {
-        $config->merge($conf->readIni($conf_d, $section));
+        $core_config->merge($conf->readIni($conf_d, $section));
     }
 
     if (empty($_SERVER['HTTPS'])) {
-        if (isset($config->system) && ! empty($config->system->https)) {
+        if (isset($core_config->system) && ! empty($core_config->system->https)) {
             header('Location: https://' . $_SERVER['SERVER_NAME']);
             exit(); // TODO нужно убрать
         }
     }
-    $tz = $config->system->timezone;
+    $tz = $core_config->system->timezone;
     if (!empty($tz)) {
         date_default_timezone_set($tz);
     }
-    if (!$config) throw new Exception("Unable to load configuration.");
+    if (!$core_config) throw new Exception("Unable to load configuration.");
 }
 catch (Exception $e) {
     Error::Exception($e->getMessage());
 }
 
 // отладка приложения
-if ($config->debug->on) {
+if ($core_config->debug->on) {
     error_reporting(E_ALL);
     ini_set('display_errors', 1);
 } else {
@@ -127,17 +128,17 @@ if ($config->debug->on) {
 }
 
 //проверяем настройки для базы данных
-if ($config->database) {
-    if (empty($config->database->adapter)) {
+if ($core_config->database) {
+    if (empty($core_config->database->adapter)) {
         Error::Exception('Database adapter is empty!');
     }
-    if (empty($config->database->params->dbname)) {
+    if (empty($core_config->database->params->dbname)) {
         Error::Exception('Database name is empty!');
     }
 }
 
 //конфиг стал только для чтения
-$config->setReadOnly();
+$core_config->setReadOnly();
 
 
 if (isset($config->include_path) && $config->include_path) {
