@@ -141,22 +141,22 @@ if ($system_config->database) {
 $system_config->setReadOnly();
 
 
-if (isset($config->include_path) && $config->include_path) {
-    set_include_path(get_include_path() . PATH_SEPARATOR . $config->include_path);
+if (isset($system_config->include_path) && $system_config->include_path) {
+    set_include_path(get_include_path() . PATH_SEPARATOR . $system_config->include_path);
 }
 
 //подключаем мультиязычность
 require_once 'I18n.php';
-$translate = new I18n($config);
+$translate = new I18n($system_config);
 
 //сохраняем конфиг
-Registry::set('config', $config);
+Registry::set('config', $system_config);
 
 //обрабатываем конфиг ядра
 $core_conf_file = __DIR__ . "/../../conf.ini";
 if (file_exists($core_conf_file)) {
-    $config = new Core2\Config();
-    Registry::set('core_config', $config->readIni($core_conf_file, 'production'));
+    $core_config = new Core2\Config();
+    Registry::set('core_config', $core_config->readIni($core_conf_file, 'production'));
 }
 
 require_once 'Acl.php';
