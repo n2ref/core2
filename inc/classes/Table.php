@@ -1385,4 +1385,19 @@ abstract class Table extends Acl {
             'end'   => $date_end
         ];
     }
+
+
+    /**
+     * Удаляет строку с данными, иногда это нужно
+     * @param int $row_key
+     * @return bool
+     */
+    public function deleteRow(int $row_key): bool {
+
+        if (isset($this->data_rows[$row_key])) {
+            unset($this->data_rows[$row_key]);
+            return true;
+        }
+        return false;
+    }
 }

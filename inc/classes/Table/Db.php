@@ -1023,19 +1023,4 @@ class Db extends Table {
     {
         $this->cachable = $is;
     }
-
-    /**
-     * Удаляет строку с данными
-     * иногда это нужно
-     * @param int $i
-     * @return bool
-     */
-    public function deleteRow(int $i): bool
-    {
-        if (isset($this->data_rows[$i])) {
-            unset($this->data_rows[$i]);
-            return true;
-        }
-        return false;
-    }
 }
