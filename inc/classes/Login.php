@@ -85,7 +85,7 @@ class Login extends \Common {
         elseif ($uri == 'restore_complete') {
             $auth = $this->isModuleInstalled('auth');
             if (!$auth) {
-                throw new \Exception($this->_('Модуль регистрации не найден'), 404);
+                throw new Exception($this->_('Модуль регистрации не найден'), 404);
             }
             if (isset($auth['submodules']['restore']) && $auth['submodules']['restore']['visible'] !== 'Y') {
                 //субмдуль регистрациивыключен
@@ -151,8 +151,7 @@ class Login extends \Common {
                     ];
                 }
             }
-
-            $this->authLoginPassword($login, $password);
+            $this->checkLogin($login, $password);
 
             return [
                 'status' => 'success',
@@ -210,11 +209,17 @@ class Login extends \Common {
         if ($logo) {
             $tpl->logo->assign('{logo}', $logo);
         }
-
+        $danger = '';
+        if (!empty($this->config->session->cookie_secure)) {
+            //cookie работают только по HTTPS
+            $danger = $this->_("Вход возможен только по защищенному соединению.");
+        }
+        $tpl->assign('{danger}', $danger);
         if ($auth = $this->isModuleInstalled('auth')) {
             if (isset($auth['submodules']['registration']) && $auth['submodules']['registration']['visible'] !== 'Y') {
                 //субмдуль регистрациивыключен
-            } else {
+            }
+            else {
                 $auth_config = $this->modAuth->moduleConfig->auth;
                 $reg_config = $this->modAuth->moduleConfig->registration;
                 $restore_config = $this->modAuth->moduleConfig->restore;
@@ -317,7 +322,7 @@ class Login extends \Common {
         }
 
         if (session_id() == 'deleted') {
-            throw new \Exception($this->translate->tr("Ошибка сохранения сессии. Проверьте настройки системного времени."));
+            throw new Exception($this->_("Ошибка сохранения сессии. Проверьте настройки системного времени."));
         }
 
         $authNamespace->ID    = (int)$user['u_id'];
@@ -355,13 +360,13 @@ class Login extends \Common {
      * @return array
      * @throws Exception
      */
-    private function checkLogin(string $login, string $password): array {
+    private function checkLogin(string $login, string $password): void {
 
         $blockNamespace = new SessionContainer('Block');
 
         try {
             if ( ! empty($blockNamespace->blocked)) {
-                throw new \Exception($this->translate->tr("Ваш доступ временно заблокирован!"));
+                throw new Exception($this->_("Ваш доступ временно заблокирован!"));
             }
 
             $login = trim($login);
@@ -391,15 +396,22 @@ class Login extends \Common {
             }
 
             if ( ! $user) {
-                throw new Exception($this->translate->tr("Нет такого пользователя"));
+                throw new Exception($this->_("Нет такого пользователя"));
             }
 
 
-            if ($user['u_pass'] !== Tool::pass_salt($password)) {
-                throw new Exception($this->translate->tr("Неверный пароль"));
+            if ( ! Tool::password_verify_secure($password, (string)$user['u_pass'])) {
+                throw new \Exception($this->translate->tr("Неверный пароль"));
             }
 
-            return $user;
+            if (Tool::password_needs_upgrade((string)$user['u_pass']) && !empty($user['u_id'])) {
+                $where = $this->db->quoteInto('u_id = ?', (int)$user['u_id']);
+                $this->db->update('core_users', [
+                    'u_pass' => Tool::password_hash_secure($password),
+                ], $where);
+            }
+
+            $this->auth($user);
 
         } catch (\Exception $e) {
             $code = $e->getCode() > 200 && $e->getCode() < 600 ? $e->getCode() : 403;
@@ -419,21 +431,6 @@ class Login extends \Common {
 
             throw $e;
         }
-    }
-
-
-    /**
-     * Авторизация пользователя через форму
-     * @param string $login
-     * @param string $password
-     * @return void
-     * @throws \Zend_Db_Exception
-     * @throws Exception
-     */
-    private function authLoginPassword(string $login, string $password): void {
-
-        $user = $this->checkLogin($login, $password);
-        $this->auth($user);
     }
 
 
