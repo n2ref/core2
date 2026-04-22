@@ -192,7 +192,7 @@ class Route {
         $path = $this->path;
         $path = str_replace('\~', '~', $path);
         $path = str_replace('~', '\~', $path);
-        $path = "~^{$path}$~u";
+        $path = "~^{$path}$~ui";
 
         if (preg_match_all('~\{(?<name>[a-zA-Z0-9_]+)(?:|:(?<rule>[^}]+))\}~u', $path, $matches)) {
 
