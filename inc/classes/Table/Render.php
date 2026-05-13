@@ -842,7 +842,9 @@ class Render extends Acl {
                 }
             }
 
-            foreach ($this->table['records'] as $row) {
+            $row_collapse = false;
+
+            foreach ($this->table['records'] as $key => $row) {
                 if (is_array($row) && ! empty($row['cells'])) {
                     $row_id = ! empty($row['cells']['id']) && ! empty($row['cells']['id']['value'])
                         ? $row['cells']['id']['value']
@@ -866,6 +868,37 @@ class Render extends Acl {
 
                         if ( ! empty($this->table['show']) && ! empty($this->table['show']['lineNumbers'])) {
                             $count_cols += 1;
+                        }
+
+
+                        if ( ! empty($this->table['groupOptions']) &&
+                             ! empty($this->table['groupOptions']['collapse_toggle'])
+                        ) {
+                            if ( ! empty($this->table['groupOptions']['collapsed'])) {
+                                $row_collapse = true;
+                            }
+
+                            $collapsed_class = ! empty($this->table['groupOptions']['collapsed'])
+                                ? 'fa-chevron-right'
+                                : 'fa-chevron-down';
+
+
+                            $group_rows = 0;
+                            foreach ($this->table['records'] as $key2 => $row2) {
+                                if ($key <= $key2 &&
+                                    is_array($row2) &&
+                                    ! empty($row2['cells'])
+                                ) {
+                                    if ($group_value === $row2['cells'][$group_field]['value']) {
+                                        $group_rows++;
+                                    } else {
+                                        break;
+                                    }
+                                }
+                            }
+
+                            $tpl->rows->group->group_collapse->assign('[COLLAPSED_CLASS]', $collapsed_class);
+                            $tpl->rows->group->group_collapse->assign('[GROUP_ROWS]',      $group_rows);
                         }
 
                         $tpl->rows->group->assign('[COLS]',  $show_column + $count_cols);
@@ -1031,6 +1064,17 @@ class Render extends Acl {
                         }
                     }
 
+
+
+                    if (isset($row['collapsed'])) {
+                        $row_collapse = (bool)$row['collapsed'];
+                    }
+
+                    if ($row_collapse) {
+                        $row['attr']['class'] = isset($row['attr']['class'])
+                            ? $row['attr']['class'] .= ' row-table-collapsed'
+                            : 'row-table-collapsed';
+                    }
 
                     if ( ! empty($row['attr'])) {
                         $attribs_string = '';
