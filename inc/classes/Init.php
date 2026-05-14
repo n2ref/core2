@@ -559,7 +559,7 @@ class Init extends Acl {
     private function checkExpired()
     {
 
-        if ($this->config->registry->pass_expired == 'Y') {
+        if ($this->config?->registry?->pass_expired == 'Y') {
             if ( ! empty($this->auth->check_expired)) {
                 return;
             }
