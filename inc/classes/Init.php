@@ -248,6 +248,13 @@ class Init extends Acl {
 
             $auth = new SessionContainer('Auth');
             if (!empty($auth->ID) && is_int($auth->ID)) {
+                if (!empty($_POST['login']) && !empty($_POST['password'])) {
+                    //попытка повторного входа
+                    return [
+                        'status'     => 'success',
+                        'return_url' => DOC_PATH,
+                    ];
+                }
                 if (!$auth->getManager()->isValid()) {
                     $this->closeSession('Y');
                 }
@@ -746,7 +753,7 @@ class Init extends Acl {
                     //http basic auth allowed
                     [$login, $password] = explode(':', base64_decode(substr($_SERVER['HTTP_AUTHORIZATION'], 6)));
                     $user = $this->dataUsers->getUserByLogin($login);
-                    if ($user && $user['u_pass'] === Tool::pass_salt(md5($password))) {
+                    if ($user && \Core2\Tool::password_verify_secure($password, (string)$user['u_pass'])) {
                         $auth = new \StdClass();
 
                         $auth->LIVEID = 0;

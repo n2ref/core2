@@ -151,8 +151,7 @@ class Login extends \Common {
                     ];
                 }
             }
-
-            $this->authLoginPassword($login, $password);
+            $this->checkLogin($login, $password);
 
             return [
                 'status' => 'success',
@@ -361,7 +360,7 @@ class Login extends \Common {
      * @return array
      * @throws Exception
      */
-    private function checkLogin(string $login, string $password): array {
+    private function checkLogin(string $login, string $password): void {
 
         $blockNamespace = new SessionContainer('Block');
 
@@ -401,11 +400,18 @@ class Login extends \Common {
             }
 
 
-            if ($user['u_pass'] !== Tool::pass_salt($password)) {
-                throw new Exception($this->_("Неверный пароль"));
+            if ( ! Tool::password_verify_secure($password, (string)$user['u_pass'])) {
+                throw new \Exception($this->translate->tr("Неверный пароль"));
             }
 
-            return $user;
+            if (Tool::password_needs_upgrade((string)$user['u_pass']) && !empty($user['u_id'])) {
+                $where = $this->db->quoteInto('u_id = ?', (int)$user['u_id']);
+                $this->db->update('core_users', [
+                    'u_pass' => Tool::password_hash_secure($password),
+                ], $where);
+            }
+
+            $this->auth($user);
 
         } catch (\Exception $e) {
             $code = $e->getCode() > 200 && $e->getCode() < 600 ? $e->getCode() : 403;
@@ -425,21 +431,6 @@ class Login extends \Common {
 
             throw $e;
         }
-    }
-
-
-    /**
-     * Авторизация пользователя через форму
-     * @param string $login
-     * @param string $password
-     * @return void
-     * @throws \Zend_Db_Exception
-     * @throws Exception
-     */
-    private function authLoginPassword(string $login, string $password): void {
-
-        $user = $this->checkLogin($login, $password);
-        $this->auth($user);
     }
 
 
