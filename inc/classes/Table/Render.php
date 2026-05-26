@@ -363,7 +363,7 @@ class Render extends Acl {
                         case 'text_strict' :
                         case 'match':
                             $tpl->search_container->search_field->text->assign("[KEY]",     $key);
-                            $tpl->search_container->search_field->text->assign("[VALUE]",   htmlspecialchars($control_value));
+                            $tpl->search_container->search_field->text->assign("[VALUE]",   htmlspecialchars((string)$control_value));
                             $tpl->search_container->search_field->text->assign("[IN_TEXT]", $attributes_str);
                             break;
 

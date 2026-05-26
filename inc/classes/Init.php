@@ -93,34 +93,33 @@ try {
 
     $section = !empty($_SERVER['SERVER_NAME']) ? $_SERVER['SERVER_NAME'] : 'production';
 
-    $conf          = new Core2\Config($config_origin);
-    $system_config = $conf->getData()->merge($conf->readIni($conf_file, $section));
-
+    $conf     = new Core2\Config($config_origin);
+    $config   = $conf->getData()->merge($conf->readIni($conf_file, $section));
 
 
     $conf_d = __DIR__ . "/../../conf.ext.ini";
     if (file_exists($conf_d)) {
-        $system_config->merge($conf->readIni($conf_d, $section));
+        $config->merge($conf->readIni($conf_d, $section));
     }
 
     if (empty($_SERVER['HTTPS'])) {
-        if (isset($system_config->system) && ! empty($system_config->system->https)) {
+        if (isset($config->system) && ! empty($config->system->https)) {
             header('Location: https://' . $_SERVER['SERVER_NAME']);
             exit(); // TODO нужно убрать
         }
     }
-    $tz = $system_config->system->timezone;
+    $tz = $config->system->timezone;
     if (!empty($tz)) {
         date_default_timezone_set($tz);
     }
-    if (!$system_config) throw new Exception("Unable to load configuration.");
+    if (!$config) throw new Exception("Unable to load configuration.");
 }
 catch (Exception $e) {
     Error::Exception($e->getMessage());
 }
 
 // отладка приложения
-if ($system_config->debug->on) {
+if ($config->debug->on) {
     error_reporting(E_ALL);
     ini_set('display_errors', 1);
 } else {
@@ -128,43 +127,43 @@ if ($system_config->debug->on) {
 }
 
 //проверяем настройки для базы данных
-if ($system_config->database) {
-    if (empty($system_config->database->adapter)) {
+if ($config->database) {
+    if (empty($config->database->adapter)) {
         Error::Exception('Database adapter is empty!');
     }
-    if (empty($system_config->database->params->dbname)) {
+    if (empty($config->database->params->dbname)) {
         Error::Exception('Database name is empty!');
     }
 }
 
 //конфиг стал только для чтения
-$system_config->setReadOnly();
+$config->setReadOnly();
 
 
-if (isset($system_config->include_path) && $system_config->include_path) {
-    set_include_path(get_include_path() . PATH_SEPARATOR . $system_config->include_path);
+if (isset($config->include_path) && $config->include_path) {
+    set_include_path(get_include_path() . PATH_SEPARATOR . $config->include_path);
 }
 
 //подключаем мультиязычность
 require_once 'I18n.php';
-$translate = new I18n($system_config);
+$translate = new I18n($config);
 
 //сохраняем конфиг
-Registry::set('config', $system_config);
+Registry::set('config', $config);
 
 //обрабатываем конфиг ядра
 $core_conf_file = __DIR__ . "/../../conf.ini";
 if (file_exists($core_conf_file)) {
-    $core_config = new Core2\Config();
-    Registry::set('core_config', $core_config->readIni($core_conf_file, 'production'));
+    $config = new Core2\Config();
+    Registry::set('core_config', $config->readIni($core_conf_file, 'production'));
 }
 
 require_once 'Acl.php';
 require_once 'Common.php';
 require_once 'SSE.php';
 
-
 /**
+ * Class Init
  * @property Core2\Model\Modules $dataModules
  */
 class Init extends Acl {
@@ -173,6 +172,9 @@ class Init extends Acl {
      * @var StdClass|Zend_Session_Namespace
      */
     private $auth;
+
+    protected $is_rest = array();
+    protected $is_soap = array();
 
 
     /**
@@ -215,6 +217,7 @@ class Init extends Acl {
             //$sess_manager->setStorage(new SessionStorage());
 
             $sess_manager->getValidatorChain()->attach('session.validate', [new HttpUserAgent(), 'isValid']);
+            //$sess_manager->getValidatorChain()->attach('session.validate', [new Csrf(), 'isValid']);
             if ($this->config->session->phpSaveHandler) {
                 $options = ['namespace' => $_SERVER['SERVER_NAME'] . ":Session"];
                 if ($this->config->session->remember_me_seconds) $options['ttl'] = $this->config->session->remember_me_seconds;
@@ -248,6 +251,13 @@ class Init extends Acl {
 
             $auth = new SessionContainer('Auth');
             if (!empty($auth->ID) && is_int($auth->ID)) {
+                if (!empty($_POST['login']) && !empty($_POST['password'])) {
+                    //попытка повторного входа
+                    return [
+                        'status'     => 'success',
+                        'return_url' => DOC_PATH,
+                    ];
+                }
                 if (!$auth->getManager()->isValid()) {
                     $this->closeSession('Y');
                 }
@@ -318,28 +328,24 @@ class Init extends Acl {
 
             if (isset($route['module'])) {
                 if (isset($route['api']) && $route['api'] === 'openapi') {
-
                     if ($route['action'] == 'core2.json') {
-                        define("SERVER", ( ! empty($_SERVER['HTTPS']) ? 'https://' : 'http://') . $_SERVER['SERVER_NAME'] . DOC_PATH);
+                        define("SERVER", (!empty($_SERVER['HTTPS']) ? 'https://' : 'http://') . $_SERVER['SERVER_NAME'] . DOC_PATH);
                         //генерация свагера для общего API
                         require_once "OpenApi.php";
                         header("Cache-Control: no-cache");
                         $schema = new \Core2\OpenApi();
-                        $html   = $schema->render();
+                        $html = $schema->render();
                         return $html;
                     }
-
                     if ($route['action'] == 'sections') {
                         require_once "OpenApiSpec.php";
                         header('Content-Type: application/json');
                         $schema = new \Core2\OpenApiSpec();
                         $this->setupAcl();
-
                         if ( ! empty($route['params'])) {
                             $section = key($route['params']);
                             return json_encode($schema->getSectionSchema($section));
                         }
-
                         return json_encode([ 'sections' => $schema->getSections() ]);
                     }
                 }
@@ -746,7 +752,7 @@ class Init extends Acl {
                     //http basic auth allowed
                     [$login, $password] = explode(':', base64_decode(substr($_SERVER['HTTP_AUTHORIZATION'], 6)));
                     $user = $this->dataUsers->getUserByLogin($login);
-                    if ($user && $user['u_pass'] === Tool::pass_salt(md5($password))) {
+                    if ($user && Tool::password_verify_secure($password, (string)$user['u_pass'])) {
                         $auth = new \StdClass();
 
                         $auth->LIVEID = 0;
