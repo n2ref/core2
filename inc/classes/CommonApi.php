@@ -264,13 +264,12 @@ class CommonApi extends \Core2\Acl {
             ];
 
         } catch (\Exception $e) {
-            $this->log->error("Fatal error", $e);
-            $is_debug = $this->config?->debug?->on || $this->auth->ADMIN;
+            $this->log->error("App error", $e);
 
             http_response_code(500);
             return [
                 'error_code'    => 'error',
-                'error_message' => $is_debug ? $e->getMessage() : $this->_('Ошибка. Обновите страницу или попробуйте позже')
+                'error_message' => $e->getMessage()
             ];
         }
     }

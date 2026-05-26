@@ -270,6 +270,16 @@ abstract class Table extends Acl {
             }
         }
 
+        // ORDERING CLEAR
+        if ( ! empty($_POST['order_clear_' . $resource])) {
+            unset($_POST['order_clear_' . $resource]);
+
+            if ( ! empty($this->session->table->order)) {
+                $this->session->table->order      = "";
+                $this->session->table->order_type = "";
+                $this->is_update_state            = true;
+            }
+        }
     }
 
 
