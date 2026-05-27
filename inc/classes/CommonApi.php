@@ -264,9 +264,14 @@ class CommonApi extends \Core2\Acl {
             ];
 
         } catch (\Exception $e) {
-            $this->log->error("App error", $e);
+            if ($e::class !== 'Exception') {
+                $this->log->error("App error", $e);
+                http_response_code(500);
 
-            http_response_code(500);
+            } else {
+                http_response_code(400);
+            }
+
             return [
                 'error_code'    => 'error',
                 'error_message' => $e->getMessage()
