@@ -926,7 +926,8 @@ abstract class Table extends Acl {
         if ( ! empty($this->is_round_calc)) {
             $data['isRoundCalc']       = $this->is_round_calc;
             $data['recordsTotalRound'] = $this->records_total_round;
-            $data['countPages']         = ceil($this->records_total_round / $this->records_per_page);
+            $data['roundCalcCount']    = $this->round_calc_count;
+            $data['countPages']        = ceil($this->records_total_round / $this->records_per_page);
         }
         if ( ! empty($filter)) {
             $data['filter'] = $filter;

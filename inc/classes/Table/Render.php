@@ -95,7 +95,8 @@ class Render extends Acl {
                     if (isset($this->table['recordsTotalRound']) &&
                         (count($this->table['records']) == 0 || $this->table['recordsPerPage'] == count($this->table['records']))
                     ) {
-                        $total_records = $this->table['recordsTotalRound'] >= $this->table['recordsTotal'] ? "{$this->table['recordsTotalRound']}+" : "{$this->table['recordsTotal']}+";
+                        $postfix_round = $this->table['recordsTotalRound'] >=  $this->table['roundCalcCount'] ?"+":"";
+                        $total_records = $this->table['recordsTotalRound'] >= $this->table['recordsTotal'] ? "{$this->table['recordsTotalRound']}$postfix_round" : "{$this->table['recordsTotal']}$postfix_round";
                     } else {
                         $total_records = $this->table['recordsTotal'] ?? 0;
                     }
@@ -226,7 +227,7 @@ class Render extends Acl {
                             $tpl_count_pages = $count_pages;
                         } elseif ( ! empty($this->table['recordsTotalRound']) && ! empty($this->table['recordsPerPage'])) {
                             $count_pages     = ceil($this->table['recordsTotalRound'] / $this->table['recordsPerPage']);
-                            $tpl_count_pages = $current_page > $count_pages ? "{$current_page}+": "{$count_pages}+";
+                            $tpl_count_pages = $current_page > $count_pages ? "{$current_page}$postfix_round": "{$count_pages}$postfix_round";
                         } else {
                             $tpl_count_pages = $count_pages;
                         }

@@ -23,7 +23,7 @@ class Db extends Table {
     private $_db;
     private $cachable        = false;
     protected $is_round_calc = false;
-    private int $round_calc_count = 1000; //максимально кол-во записей при приблизительном подсчёте
+    protected int $round_calc_count = 1000; //максимально кол-во записей при приблизительном подсчёте
 
 
     /**
@@ -896,7 +896,7 @@ class Db extends Table {
         if ($this->is_round_calc) {
 
             $count = $this->getCountSql($select);
-            if ($count > $this->round_calc_count) {
+            if ($count < $this->round_calc_count) {
                 $this->records_total_round = $count;
             } else {
                 $this->records_total_round = $this->round_calc_count;
@@ -1096,6 +1096,8 @@ class Db extends Table {
         foreach ($select_parts as $key => $part){
             $select_sql .= ' ' . $key . ' ' . $part;
         }
+
+        //echo '<pre>'; var_dump($select_sql, count($this->db->fetchAll($select_sql, $this->query_params)) ); echo '</pre>'; exit();
 
         return count($this->db->fetchAll($select_sql, $this->query_params));
     }
