@@ -1097,7 +1097,7 @@ class Db extends Table {
             $select_sql .= ' ' . $key . ' ' . $part;
         }
 
-        return count($this->db->fetchAll($select_sql));
+        return count($this->db->fetchAll($select_sql, $this->query_params));
     }
 
 
