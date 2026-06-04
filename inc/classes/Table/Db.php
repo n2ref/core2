@@ -1087,6 +1087,13 @@ class Db extends Table {
             unset($select_parts['LIMIT']);
         }
 
+        $query_params = $this->query_params;
+        //на случай "?" ":" в select части убираем такое-же кол-во параметров
+        preg_match_all('/\?|:\w+/', $select_parts['SELECT'], $select_params);
+        if(! empty($select_params[0]) && count($select_params[0])){
+            $query_params = array_slice($query_params, count($select_params[0]));
+        }
+
         $select_parts['SELECT'] = 1;
         if ( ! empty($select_parts['ORDER BY'])) {
             unset($select_parts['ORDER BY']);
@@ -1099,7 +1106,7 @@ class Db extends Table {
 
         //echo '<pre>'; var_dump($select_sql, count($this->db->fetchAll($select_sql, $this->query_params)) ); echo '</pre>'; exit();
 
-        return count($this->db->fetchAll($select_sql, $this->query_params));
+        return count($this->db->fetchAll($select_sql, $query_params));
     }
 
 
