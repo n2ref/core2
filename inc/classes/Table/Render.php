@@ -41,8 +41,26 @@ class Render extends Acl {
 
         parent::__construct();
 
-        $this->theme_src      = DOC_PATH . 'core2/html/' . THEME;
-        $this->theme_location = DOC_ROOT . 'core2/html/' . THEME;
+        $theme = defined('THEME') ? THEME : null;
+
+        if ( ! $theme) {
+            if ($this->config?->theme && is_string($this->config->theme)) {
+                $theme = $this->config->theme;
+
+            } elseif ($this->config?->theme &&
+                      is_object($this->config->theme) &&
+                      $this->config->theme?->name &&
+                      is_string($this->config->theme->name)
+            ) {
+                $theme = $this->config->theme->name;
+
+            } else {
+                $theme = 'material';
+            }
+        }
+
+        $this->theme_src      = DOC_PATH . "core2/html/{$theme}";
+        $this->theme_location = DOC_ROOT . "core2/html/{$theme}";
 
         $this->session = new SessionContainer($table['resource']);
 
@@ -75,13 +93,20 @@ class Render extends Acl {
         $tpl->assign('[RESOURCE]',          $this->table['resource']);
         $tpl->assign('[DELETE]',            $this->table['resource'] . "." . $this->table['deleteKey']);
         $tpl->assign('[IS_AJAX]',           (int)($this->table['isAjax'] ?? 0));
-        $tpl->assign('[LOCATION]',          ! empty($this->table['isAjax']) ? $_SERVER['QUERY_STRING'] . "&__{$this->table['resource']}=ajax" : $_SERVER['QUERY_STRING']);
+        $tpl->assign('[LOCATION]',          ! empty($this->table['request_url']) ? $this->table['request_url'] : '');
         $tpl->assign('[CLASS_MAX_HEIGHT]',  ! empty($this->table['max_height']) ? 'coreui-table-limit-height' : '');
         $tpl->assign('[STYLE_MAX_HEIGHT]',  ! empty($this->table['max_height']) ? "max-height: {$this->table['max_height']}px;" : '');
         $tpl->assign('[STYLE_OVERFLOW]',    $this->table['is_overflow'] ? ';overflow:auto' : '');
 
         if ( ! empty($this->table['head_top'])) {
             $tpl->touchBlock('script_head_top');
+        }
+        if ( ! empty($this->table['legend_items'])) {
+            foreach ($this->table['legend_items'] as $legend_color => $legend_title) {
+                $tpl->legend->legend_item->assign('[COLOR]', $legend_color);
+                $tpl->legend->legend_item->assign('[TITLE]', $legend_title);
+                $tpl->legend->legend_item->reassign();
+            }
         }
 
         if ( ! empty($this->table['show'])) {
