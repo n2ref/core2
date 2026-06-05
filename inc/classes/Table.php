@@ -933,6 +933,7 @@ abstract class Table extends Acl {
 
 
     /**
+     * Добавление под таблицей "легенды" (Указание категорий с данными)
      * @param array $items
      * @return void
      */
