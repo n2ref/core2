@@ -1513,11 +1513,13 @@ class listTable extends initList {
     /**
      * Print grid HTML
      * @return void
+     * @throws Exception
      */
-    public function showTable() {
+    public function showTable(): void {
+
         if ($this->checkAcl($this->resource, 'list_all') || $this->checkAcl($this->resource, 'list_owner')) {
             $this->makeTable();
-            $loc = $this->ajax ? $_SERVER['QUERY_STRING'] . "&__{$this->resource}=ajax" : $_SERVER['QUERY_STRING'];
+            $loc = $this->ajax ? "{$_SERVER['REQUEST_URI']}&__{$this->resource}=ajax" : $_SERVER['REQUEST_URI'];
 
             echo "<script>
                 if (!listx){
