@@ -581,7 +581,9 @@ window.addEventListener(
 	false,
 );
 
-window.addEventListener('error', main_menu.errors._onErrorEvent, true);
+if (Core2) {
+	window.addEventListener('error', Core2.errors._onErrorEvent, true);
+}
 
 document.addEventListener("DOMContentLoaded",
 	(e) => {
