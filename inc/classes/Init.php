@@ -298,12 +298,14 @@ class Init extends Acl {
 
         // Парсим маршрут
         $route = (new Router())->getRoute();
+
         if (isset($route['api']) && !$this->auth) {
             if ($route['api'] == 'auth') {
                 //это запросы на регистрацию, восстановление пароля или OAUTH
                 require_once 'core2/inc/classes/Api.php';
                 header('Content-type: application/json; charset="utf-8"');
                 try {
+                    $route['query'] = http_build_query($route['query']); //DEPRECATED
                     return (new Core2\Api($route))->dispatchApi();
                 } catch (Exception $e) {
                     return Error::catchJsonException($e->getMessage(), $e->getCode());
@@ -360,6 +362,11 @@ class Init extends Acl {
                     $sse = new Core2\SSE();
                     $sse->run();
                     return '';
+                } elseif ($route['module'] === 'change_pass') {
+                    require_once 'Login.php';
+                    $login = new Login();
+                    $this->setupSkin();
+                    return $login->dispatch($route);
                 }
             }
 
@@ -370,6 +377,9 @@ class Init extends Acl {
 
             $this->logActivity($logExclude);
             //TODO CHECK DIRECT REQUESTS except iframes
+
+            //Проверка устаревания пароля
+            $this->checkExpired();
 
             require_once 'Zend_Session_Namespace.php'; //DEPRECATED
             require_once 'core2/inc/Interfaces/Delete.php';
@@ -400,7 +410,7 @@ class Init extends Acl {
 
             $login = new Login();
             $this->setupSkin();
-            parse_str($route['query'], $request);
+            $request = $route['query'];
             if (array_key_exists('X-Requested-With', Tool::getRequestHeaders())) {
                 if ( ! empty($request['module'])) {
                     throw new Exception('expired');
@@ -459,6 +469,7 @@ class Init extends Acl {
                 require_once 'core2/inc/classes/Api.php';
                 header('Content-type: application/json; charset="utf-8"');
                 try {
+                    $route['query'] = http_build_query($route['query']); //DEPRECATED
                     return (new Core2\Api($route))->dispatchApi();
                 } catch (Exception $e) {
                     return Error::catchJsonException($e->getMessage(), $e->getCode());
@@ -545,6 +556,39 @@ class Init extends Acl {
                 }
 
             }
+        }
+    }
+
+
+    /**
+     * Проверка на устаревание пароля пользователя
+     * @return void
+     * @throws Exception
+     */
+    private function checkExpired()
+    {
+
+        if ($this->config?->registry?->pass_expired == 'Y') {
+            if ( ! empty($this->auth->check_expired)) {
+                return;
+            }
+
+            if ( ! empty($this->config->registry->pass_expired_exception_user_id)) {
+                $exception_ids = explode(',', $this->config->registry->pass_expired_exception_user_id);
+                if (in_array($this->auth->ID, $exception_ids)) {
+                    $this->auth->check_expired = 1;
+                    return;
+                }
+            }
+
+            $data_user = $this->dataUsers->getUserById($this->auth->ID);
+
+            if (
+                (new DateTime($data_user['date_expired'])) < (new DateTime())) {
+                header('Location: /change_pass');
+                exit;
+            }
+            $this->auth->check_expired = 1;
         }
     }
 

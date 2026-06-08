@@ -210,14 +210,10 @@ class Login extends \Common {
             $tpl->logo->assign('{logo}', $logo);
         }
         $danger = '';
-        if (!empty($this->config->session->cookie_secure)) {
-            //cookie работают только по HTTPS
-            $danger = $this->_("Вход возможен только по защищенному соединению.");
-        }
         $tpl->assign('{danger}', $danger);
         if ($auth = $this->isModuleInstalled('auth')) {
             if (isset($auth['submodules']['registration']) && $auth['submodules']['registration']['visible'] !== 'Y') {
-                //субмдуль регистрациивыключен
+                //субмдуль регистрации выключен
             }
             else {
                 $auth_config = $this->modAuth->moduleConfig->auth;
