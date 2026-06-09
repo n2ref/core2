@@ -1106,7 +1106,7 @@ class Db extends Table {
 
         //echo '<pre>'; var_dump($select_sql, count($this->db->fetchAll($select_sql, $this->query_params)) ); echo '</pre>'; exit();
 
-        return count($this->db->fetchAll($select_sql, $query_params));
+        return $this->db->fetchOne("SELECT count(1) FROM ({$select_sql}) as tttttt",$query_params);
     }
 
 
