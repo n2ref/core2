@@ -68,8 +68,12 @@ abstract class Table extends Acl {
     protected $table                    = '';
     protected $primary_key              = '';
 
-    private bool $is_update_state  = false;
-    private bool $is_initial_state = false;
+    private bool  $is_update_state  = false;
+    private bool  $is_initial_state = false;
+    private string $request_url     = '';
+    private array $_get             = [];
+    private array $_post            = [];
+    private array $legend_items     = [];
 
     /**
      * @var SessionContainer
@@ -124,151 +128,31 @@ abstract class Table extends Acl {
 
         parent::__construct();
 
-        $this->resource = $resource;
-
-        $this->current_page = isset($_GET["_page_{$this->resource}"]) && $_GET["_page_{$this->resource}"] > 0
-            ? (int)$_GET["_page_{$this->resource}"]
-            : 1;
-
-        $this->session = new SessionContainer($this->resource);
+        $this->resource    = $resource;
+        $this->_get        = $_GET;
+        $this->_post       = $_POST;
+        $this->request_url = $_SERVER['REQUEST_URI'] ?? '';
+        $this->session     = new SessionContainer($this->resource);
 
         if ( ! isset($this->session->table)) {
             $this->session->table   = new \stdClass();
             $this->is_initial_state = true;
         }
 
-        // SEARCH
-        if ( ! empty($_POST['search']) && ! empty($_POST['search'][$resource])) {
-            $this->clearSearch();
-            foreach ($_POST['search'][$resource] as $nmbr_field => $search_value) {
-                if (is_array($search_value)) {
-                    $isset_value = false;
-                    foreach ($search_value as $search_item) {
-                        if ($search_item || $search_item === 0) {
-
-                            $isset_value = true;
-                            break;
-                        }
-                    }
-
-                    if ( ! $isset_value) {
-                        $search_value = null;
-                    }
-                }
-
-                $this->setSearch($nmbr_field, $search_value);
-            }
-
-            unset($_POST['search'][$resource]);
-        }
-        if ( ! empty($_POST['search_clear_' . $this->resource])) {
-            $this->clearSearch();
-        }
-
-        // FILTER
-        if ( ! empty($_POST['filter']) && ! empty($_POST['filter'][$resource])) {
-            $all_empty = true;
-            foreach ($_POST['filter'][$resource] as $filter) {
-                if ($filter !== '') {
-                    $all_empty = false;
-                    break;
-                }
-            }
-            if ($all_empty) {
-                $this->clearFilter();
-            } else {
-                foreach ($_POST['filter'][$resource] as $nmbr_field => $filter_value) {
-                    if (is_array($filter_value)) {
-                        $isset_value = false;
-                        foreach ($filter_value as $filter_item) {
-                            if ($filter_item) {
-                                $isset_value = true;
-                                break;
-                            }
-                        }
-
-                        if ( ! $isset_value) {
-                            $filter_value = null;
-                        }
-                    }
-
-                    $this->setFilter($nmbr_field, $filter_value);
-                }
-            }
-
-            unset($_POST['filter'][$resource]);
-        }
-        if ( ! empty($_POST['filter_clear_' . $this->resource])) {
-            $this->clearFilter();
-        }
+        $this->init();
+    }
 
 
-        // RECORDS PER PAGE
-        if (isset($_POST["count_{$this->resource}"])) {
-            $this->session->table->records_per_page = abs((int)$_POST["count_{$this->resource}"]);
-            $this->is_update_state = true;
-        }
+    /**
+     * @param \Core2\Request $request
+     * @return void
+     */
+    public function setRequest(\Core2\Request $request): void {
 
-        // COLUMNS
-        if (isset($_POST["columns_{$this->resource}"]) && is_array($_POST["columns_{$this->resource}"])) {
-            $columns = $_POST["columns_{$this->resource}"];
-            unset($_POST['columns_' . $resource]);
+        $this->_post = $request->getPost();
+        $this->_get  = $request->getQueryParams();
 
-            $this->session->table->columns = [];
-
-            if ( ! empty($columns)) {
-                foreach ($columns as $column) {
-                    if (is_string($column)) {
-                        $this->session->table->columns[$column] = true;
-                        $this->is_update_state                  = true;
-                    }
-                }
-            }
-        }
-
-        if (isset($this->session->table->records_per_page) && $this->session->table->records_per_page >= 0) {
-            $this->records_per_page = $this->session->table->records_per_page;
-            $this->records_per_page = $this->records_per_page === 0
-                ? 1000000000
-                : $this->records_per_page;
-
-            $this->is_update_state = true;
-        }
-
-        // ORDERING
-        if ( ! empty($_POST['order_' . $resource])) {
-            $order = $_POST['order_' . $resource];
-            unset($_POST['order_' . $resource]);
-
-            if (empty($this->session->table->order)) {
-                $this->session->table->order      = $order;
-                $this->session->table->order_type = "asc";
-                $this->is_update_state            = true;
-
-            } else {
-                if ($order == $this->session->table->order) {
-                    if ($this->session->table->order_type == "asc") {
-                        $this->session->table->order_type = "desc";
-                        $this->is_update_state            = true;
-
-                    } elseif ($this->session->table->order_type == "desc") {
-                        $this->session->table->order      = "";
-                        $this->session->table->order_type = "";
-                        $this->is_update_state            = true;
-
-                    } elseif ($this->session->table->order_type == "") {
-                        $this->session->table->order_type = "asc";
-                        $this->is_update_state            = true;
-                    }
-
-                } else {
-                    $this->session->table->order      = $order;
-                    $this->session->table->order_type = "asc";
-                    $this->is_update_state            = true;
-                }
-            }
-        }
-
+        $this->init();
     }
 
 
@@ -289,11 +173,25 @@ abstract class Table extends Acl {
 
 
     /**
-     * @param bool $is_ajax
+     * @param bool $is_overflow
      */
-    public function setAjax(bool $is_ajax = true) {
+    public function setOverflow(bool $is_overflow): void {
+        $this->is_overflow = $is_overflow;
+    }
+
+
+    /**
+     * @param bool        $is_ajax
+     * @param string|null $request_url
+     * @return void
+     */
+    public function setAjax(bool $is_ajax = true, string|null $request_url = null): void {
 
         $this->is_ajax = $is_ajax;
+
+        if ($request_url) {
+            $this->request_url = $request_url;
+        }
     }
 
 
@@ -863,7 +761,8 @@ abstract class Table extends Acl {
         }
 
         $data = [
-            'resource' => $this->resource,
+            'resource'    => $this->resource,
+            'request_url' => $this->request_url,
             'show'     => [
                 'header'        => $this->show_header,
                 'toolbar'       => $this->show_service,
@@ -885,6 +784,8 @@ abstract class Table extends Acl {
             'recordsTotalMore'   => $this->records_total_more,
             'recordsPerPageList' => $per_page_list,
             'max_height'         => $this->max_height,
+            'is_overflow'        => $this->is_overflow,
+            'legend_items'       => $this->legend_items,
             'records'            => $records,
         ];
 
@@ -1033,6 +934,16 @@ abstract class Table extends Acl {
 
 
     /**
+     * @param array $items
+     * @return void
+     */
+    public function setLegend(array $items): void {
+
+        $this->legend_items = $items;
+    }
+
+
+    /**
      * @return void
      * @throws Exception
      * @throws \Zend_Db_Adapter_Exception
@@ -1062,9 +973,9 @@ abstract class Table extends Acl {
         }
 
         //TEMPLATES
-        if ( ! empty($_POST['template_create_' . $this->resource])) {
+        if ( ! empty($this->_post['template_create_' . $this->resource])) {
             if ($profile_controller = $this->getProfileController()) {
-                $template_title = $_POST['template_create_' . $this->resource];
+                $template_title = $this->_post['template_create_' . $this->resource];
                 $hash           = $this->getUniqueHash();
 
                 $template = $profile_controller->getUserData("table_template_{$this->resource}_{$hash}");
@@ -1079,9 +990,9 @@ abstract class Table extends Acl {
             }
         }
 
-        if ( ! empty($_POST['template_remove_' . $this->resource])) {
+        if ( ! empty($this->_post['template_remove_' . $this->resource])) {
             if ($profile_controller = $this->getProfileController()) {
-                $template_id = $_POST['template_remove_' . $this->resource];
+                $template_id = $this->_post['template_remove_' . $this->resource];
                 $hash        = $this->getUniqueHash();
                 $template    = $profile_controller->getUserData("table_template_{$this->resource}_{$hash}");
                 $template    = $template ?: [];
@@ -1094,9 +1005,9 @@ abstract class Table extends Acl {
             }
         }
 
-        if ( ! empty($_POST['template_select_' . $this->resource])) {
+        if ( ! empty($this->_post['template_select_' . $this->resource])) {
             if ($profile_controller = $this->getProfileController()) {
-                $template_id = $_POST['template_select_' . $this->resource];
+                $template_id = $this->_post['template_select_' . $this->resource];
                 $hash        = $this->getUniqueHash();
 
                 $template = $profile_controller->getUserData("table_template_{$this->resource}_{$hash}");
@@ -1365,5 +1276,174 @@ abstract class Table extends Acl {
             'start' => $date_start,
             'end'   => $date_end
         ];
+    }
+
+
+    /**
+     * @return void
+     */
+    private function init(): void {
+
+        $this->current_page = isset($this->_get["_page_{$this->resource}"]) && $this->_get["_page_{$this->resource}"] > 0
+            ? (int)$this->_get["_page_{$this->resource}"]
+            : 1;
+
+        // SEARCH
+        if ( ! empty($this->_post['search']) && ! empty($this->_post['search'][$this->resource])) {
+            $this->clearSearch();
+            foreach ($this->_post['search'][$this->resource] as $nmbr_field => $search_value) {
+                if (is_array($search_value)) {
+                    $isset_value = false;
+                    foreach ($search_value as $search_item) {
+                        if ($search_item || $search_item === 0) {
+
+                            $isset_value = true;
+                            break;
+                        }
+                    }
+
+                    if ( ! $isset_value) {
+                        $search_value = null;
+                    }
+                }
+
+                $this->setSearch($nmbr_field, $search_value);
+            }
+
+            unset($this->_post['search'][$this->resource]);
+        }
+        if ( ! empty($this->_post['search_clear_' . $this->resource])) {
+            $this->clearSearch();
+        }
+
+        // FILTER
+        if ( ! empty($this->_post['filter']) && ! empty($this->_post['filter'][$this->resource])) {
+            $all_empty = true;
+            foreach ($this->_post['filter'][$this->resource] as $filter) {
+                if ($filter !== '') {
+                    $all_empty = false;
+                    break;
+                }
+            }
+            if ($all_empty) {
+                $this->clearFilter();
+            } else {
+                foreach ($this->_post['filter'][$this->resource] as $nmbr_field => $filter_value) {
+                    if (is_array($filter_value)) {
+                        $isset_value = false;
+                        foreach ($filter_value as $filter_item) {
+                            if ($filter_item) {
+                                $isset_value = true;
+                                break;
+                            }
+                        }
+
+                        if ( ! $isset_value) {
+                            $filter_value = null;
+                        }
+                    }
+
+                    $this->setFilter($nmbr_field, $filter_value);
+                }
+            }
+
+            unset($this->_post['filter'][$this->resource]);
+        }
+        if ( ! empty($this->_post['filter_clear_' . $this->resource])) {
+            $this->clearFilter();
+        }
+
+
+        // RECORDS PER PAGE
+        if (isset($this->_post["count_{$this->resource}"])) {
+            $this->session->table->records_per_page = abs((int)$this->_post["count_{$this->resource}"]);
+            $this->is_update_state = true;
+        }
+
+        // COLUMNS
+        if (isset($this->_post["columns_{$this->resource}"]) && is_array($this->_post["columns_{$this->resource}"])) {
+            $columns = $this->_post["columns_{$this->resource}"];
+            unset($this->_post['columns_' . $this->resource]);
+
+            $this->session->table->columns = [];
+
+            if ( ! empty($columns)) {
+                foreach ($columns as $column) {
+                    if (is_string($column)) {
+                        $this->session->table->columns[$column] = true;
+                        $this->is_update_state                  = true;
+                    }
+                }
+            }
+        }
+
+        if (isset($this->session->table->records_per_page) && $this->session->table->records_per_page >= 0) {
+            $this->records_per_page = $this->session->table->records_per_page;
+            $this->records_per_page = $this->records_per_page === 0
+                ? 1000000000
+                : $this->records_per_page;
+
+            $this->is_update_state = true;
+        }
+
+        // ORDERING
+        if ( ! empty($this->_post['order_' . $this->resource])) {
+            $order = $this->_post['order_' . $this->resource];
+            unset($this->_post['order_' . $this->resource]);
+
+            if (empty($this->session->table->order)) {
+                $this->session->table->order      = $order;
+                $this->session->table->order_type = "asc";
+                $this->is_update_state            = true;
+
+            } else {
+                if ($order == $this->session->table->order) {
+                    if ($this->session->table->order_type == "asc") {
+                        $this->session->table->order_type = "desc";
+                        $this->is_update_state            = true;
+
+                    } elseif ($this->session->table->order_type == "desc") {
+                        $this->session->table->order      = "";
+                        $this->session->table->order_type = "";
+                        $this->is_update_state            = true;
+
+                    } elseif ($this->session->table->order_type == "") {
+                        $this->session->table->order_type = "asc";
+                        $this->is_update_state            = true;
+                    }
+
+                } else {
+                    $this->session->table->order      = $order;
+                    $this->session->table->order_type = "asc";
+                    $this->is_update_state            = true;
+                }
+            }
+        }
+
+        // ORDERING CLEAR
+        if ( ! empty($this->_post['order_clear_' . $this->resource])) {
+            unset($this->_post['order_clear_' . $this->resource]);
+
+            if ( ! empty($this->session->table->order)) {
+                $this->session->table->order      = "";
+                $this->session->table->order_type = "";
+                $this->is_update_state            = true;
+            }
+        }
+    }
+
+
+    /**
+     * Удаляет строку с данными, иногда это нужно
+     * @param int $row_key
+     * @return bool
+     */
+    public function deleteRow(int $row_key): bool {
+
+        if (isset($this->data_rows[$row_key])) {
+            unset($this->data_rows[$row_key]);
+            return true;
+        }
+        return false;
     }
 }
