@@ -62,7 +62,7 @@ abstract class Table extends Acl {
     protected $current_page             = 1;
     protected $max_height               = null;
     protected $is_ajax                  = false;
-    protected $is_round_calc            = false;
+    protected $is_overflow              = false;
     protected $head_top                 = false;
     protected $deleteKey                = '';
     protected $table                    = '';
@@ -324,17 +324,6 @@ abstract class Table extends Acl {
     public function setRecordsPerPageList(array $page_list): array {
 
         return $this->records_per_page_list = $page_list;
-    }
-
-
-    /**
-     * Использование примерного подсчета количества
-     * @param bool $is_round_calc
-     * @return void
-     */
-    public function setRoundCalc(bool $is_round_calc) {
-
-        $this->is_round_calc = $is_round_calc;
     }
 
 
@@ -919,7 +908,8 @@ abstract class Table extends Acl {
         if ( ! empty($this->is_round_calc)) {
             $data['isRoundCalc']       = $this->is_round_calc;
             $data['recordsTotalRound'] = $this->records_total_round;
-            $data['countPages']         = ceil($this->records_total_round / $this->records_per_page);
+            $data['roundCalcCount']    = $this->round_calc_count;
+            $data['countPages']        = ceil($this->records_total_round / $this->records_per_page);
         }
         if ( ! empty($filter)) {
             $data['filter'] = $filter;

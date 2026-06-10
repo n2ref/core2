@@ -93,10 +93,10 @@ class Render extends Acl {
 
                 } else {
                     if (isset($this->table['recordsTotalRound']) &&
-                        (count($this->table['records']) == 0 || $this->table['recordsPerPage'] == count($this->table['records'])) &&
-                        $this->table['recordsTotalRound'] >= $this->table['recordsTotal']
+                        (count($this->table['records']) == 0 || $this->table['recordsPerPage'] == count($this->table['records']))
                     ) {
-                        $total_records = "~{$this->table['recordsTotalRound']}";
+                        $postfix_round = $this->table['recordsTotalRound'] >=  $this->table['roundCalcCount'] ?"+":"";
+                        $total_records = $this->table['recordsTotalRound'] >= $this->table['recordsTotal'] ? "{$this->table['recordsTotalRound']}$postfix_round" : "{$this->table['recordsTotal']}$postfix_round";
                     } else {
                         $total_records = $this->table['recordsTotal'] ?? 0;
                     }
@@ -142,9 +142,9 @@ class Render extends Acl {
 
                     if ( ! empty($this->table['toolbar']['addButton']) &&
                         ($this->checkAcl($this->table['resource'], 'edit_all') ||
-                         $this->checkAcl($this->table['resource'], 'edit_owner')) &&
+                            $this->checkAcl($this->table['resource'], 'edit_owner')) &&
                         ($this->checkAcl($this->table['resource'], 'read_all') ||
-                         $this->checkAcl($this->table['resource'], 'read_owner'))
+                            $this->checkAcl($this->table['resource'], 'read_owner'))
                     ) {
                         $url = strpos($this->table['toolbar']['addButton'], 'javascript:') === 0
                             ? $this->table['toolbar']['addButton']
@@ -160,7 +160,7 @@ class Render extends Acl {
 
                 if ( ! empty($this->table['show']['delete']) &&
                     ($this->checkAcl($this->table['resource'], 'delete_all') ||
-                     $this->checkAcl($this->table['resource'], 'delete_owner'))
+                        $this->checkAcl($this->table['resource'], 'delete_owner'))
                 ) {
                     $delete_text   = $this->getLocution('Delete');
                     $delete_msg    = $this->getLocution('Are you sure you want to delete this post?');
@@ -225,11 +225,9 @@ class Render extends Acl {
                     if ($count_pages > 0) {
                         if (empty($this->table['recordsTotalMore'])) {
                             $tpl_count_pages = $count_pages;
-
                         } elseif ( ! empty($this->table['recordsTotalRound']) && ! empty($this->table['recordsPerPage'])) {
                             $count_pages     = ceil($this->table['recordsTotalRound'] / $this->table['recordsPerPage']);
-                            $tpl_count_pages = "~{$count_pages}";
-
+                            $tpl_count_pages = $current_page > $count_pages ? "{$current_page}$postfix_round": "{$count_pages}$postfix_round";
                         } else {
                             $tpl_count_pages = $count_pages;
                         }
@@ -751,7 +749,7 @@ class Render extends Acl {
         }
 
         if ( ! empty($this->table['columns']) &&
-             ! empty($this->table['show']) &&
+            ! empty($this->table['show']) &&
             $this->table['show']['header']
         ) {
             foreach ($this->table['columns'] as $key => $column) {
@@ -828,8 +826,8 @@ class Render extends Acl {
         if ( ! empty($this->table['records'])) {
             $row_index  = 1;
             $row_number = ! empty($this->table['currentPage']) &&
-                          ! empty($this->table['recordsPerPage']) &&
-                          $this->table['currentPage'] > 1
+            ! empty($this->table['recordsPerPage']) &&
+            $this->table['currentPage'] > 1
                 ? (($this->table['currentPage'] - 1) * $this->table['recordsPerPage']) + 1
                 : 1;
             $group_field = $this->table['groupField'] ?? null;
@@ -868,6 +866,37 @@ class Render extends Acl {
                             $count_cols += 1;
                         }
 
+
+                        if ( ! empty($this->table['groupOptions']) &&
+                            ! empty($this->table['groupOptions']['collapse_toggle'])
+                        ) {
+                            if ( ! empty($this->table['groupOptions']['collapsed'])) {
+                                $row_collapse = true;
+                            }
+
+                            $collapsed_class = ! empty($this->table['groupOptions']['collapsed'])
+                                ? 'fa-chevron-right'
+                                : 'fa-chevron-down';
+
+
+                            $group_rows = 0;
+                            foreach ($this->table['records'] as $key2 => $row2) {
+                                if ($key <= $key2 &&
+                                    is_array($row2) &&
+                                    ! empty($row2['cells'])
+                                ) {
+                                    if ($group_value === $row2['cells'][$group_field]['value']) {
+                                        $group_rows++;
+                                    } else {
+                                        break;
+                                    }
+                                }
+                            }
+
+                            $tpl->rows->group->group_collapse->assign('[COLLAPSED_CLASS]', $collapsed_class);
+                            $tpl->rows->group->group_collapse->assign('[GROUP_ROWS]',      $group_rows);
+                        }
+
                         $tpl->rows->group->assign('[COLS]',  $show_column + $count_cols);
                         $tpl->rows->group->assign('[ATTR]',  '');
                         $tpl->rows->group->assign('[VALUE]', $group_value);
@@ -886,9 +915,9 @@ class Render extends Acl {
 
                     if ( ! empty($this->table['recordsEditUrl']) &&
                         ($this->checkAcl($this->table['resource'], 'edit_all') ||
-                         $this->checkAcl($this->table['resource'], 'edit_owner') ||
-                         $this->checkAcl($this->table['resource'], 'read_all') ||
-                         $this->checkAcl($this->table['resource'], 'read_owner'))
+                            $this->checkAcl($this->table['resource'], 'edit_owner') ||
+                            $this->checkAcl($this->table['resource'], 'read_all') ||
+                            $this->checkAcl($this->table['resource'], 'read_owner'))
                     ) {
 
                         $edit_url = $this->replaceTCOL($row, $this->table['recordsEditUrl']);
