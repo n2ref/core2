@@ -29,7 +29,13 @@ class Login extends \Common {
 
         //-------------регистрация, аутентификация через форму------------------
         $uri = $route['module'];
-        parse_str($route['query'], $query);
+        $query = $route['query'];
+        if (!is_array($query)) {
+            $query = [];
+            if ($route['query']) {
+                parse_str($route['query'], $query);
+            }
+        }
         if (isset($query['core'])) {
             $uri = $query['core']; //FIXME DEPRECATED
         }
