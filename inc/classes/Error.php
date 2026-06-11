@@ -124,7 +124,9 @@ class Error {
                 }
 
             } else {
-                if ( ! in_array($message, ['911', 'Referrer error', 'Модуль не найден', 'Токен не найден'])) {
+                if ( ! in_array($message, ['911', 'Referrer error', 'Модуль не найден', 'Токен не найден']) &&
+                     ($code < 200 || $code >= 500)
+                ) {
                     error_log("{$message} \n " . $exception->getTraceAsString());
                 }
 
