@@ -1,7 +1,6 @@
 <?php
 use Core2\I18n;
 use Core2\Registry;
-use Core2\Error;
 
 
 // Определяем DOCUMENT_ROOT (для прямых вызовов, например cron)
@@ -11,7 +10,7 @@ define("DOC_PATH", substr(DOC_ROOT, strlen(rtrim($_SERVER['DOCUMENT_ROOT'], '/')
 $autoload = __DIR__ . "/vendor/autoload.php";
 
 if ( ! file_exists($autoload)) {
-    \Core2\Error::Exception("Composer autoload is missing.");
+    throw new \Exception("Composer autoload is missing.", 500);
 }
 
 require_once $autoload;
@@ -20,8 +19,7 @@ require_once "inc/classes/Error.php";
 if ( ! empty($_SERVER['REQUEST_URI'])) {
     $request_ext = explode(".", basename(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH)));
     if ( ! empty($request_ext[1]) && in_array($request_ext[1], ['txt', 'js', 'css', 'env'])) {
-        \Core2\Error::Exception("File not found", 404);
-        return;
+        throw new \Exception("File not found", 404);
     }
 }
 
@@ -38,7 +36,7 @@ require_once 'inc/classes/SSE.php';
 $conf_file = DOC_ROOT . "conf.ini";
 
 if ( ! file_exists($conf_file)) {
-    Error::Exception("conf.ini is missing.", 404);
+    throw new \Exception("conf.ini is missing.", 500);
 }
 $config_origin = [
     'system'       => ['name' => 'CORE2'],
@@ -109,7 +107,7 @@ try {
     }
 
 } catch (Exception $e) {
-    Error::Exception($e->getMessage());
+    throw new \Exception($e->getMessage(), 500);
 }
 
 // отладка приложения
@@ -123,10 +121,10 @@ if ($system_config->debug->on) {
 //проверяем настройки для базы данных
 if ($system_config->database) {
     if (empty($system_config->database->adapter)) {
-        Error::Exception('Database adapter is empty!');
+        throw new \Exception('Database adapter is empty!', 500);
     }
     if (empty($system_config->database->params->dbname)) {
-        Error::Exception('Database name is empty!');
+        throw new \Exception('Database name is empty!', 500);
     }
 }
 
