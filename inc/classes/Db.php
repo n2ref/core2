@@ -646,10 +646,22 @@ class Db {
     /**
      * Ищет перевод для строки $str
      * @param string $str
+     * @param array  $data
      * @param string $module
      * @return string
      */
-    public function _($str, $module = 'core2') {
+    public function _($str, $data, $module = 'core2') {
+
+        // DEPRECATED
+        if ($data && is_string($data) && ! $module) {
+            $module = $data;
+        }
+
+        // Замена переменных (%s) в тексте
+        if ($data && is_array($data)) {
+            $str = call_user_func_array('sprintf', [$str, ...$data]);
+        }
+
         return $this->translate->tr($str, $module);
     }
 

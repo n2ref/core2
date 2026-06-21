@@ -54,15 +54,26 @@ class Common extends \Core2\Acl {
     /**
      * Ищет перевод для строки $str
      * @param string $str
+     * @param array  $data
      * @param string $module
      * @return string
      */
-    public function _($str, $module = '') {
+    public function _($str, $data, $module = '') {
+
+        // DEPRECATED
+        if ($data && is_string($data) && ! $module) {
+            $module = $data;
+        }
 
         $module = $module ?: $this->module;
 
         if ($module === 'admin') {
             $module = 'core2';
+        }
+
+        // Замена переменных (%s) в тексте
+        if ($data && is_array($data)) {
+            $str = call_user_func_array('sprintf', [$str, ...$data]);
         }
 
         return $this->translate->tr($str, $module);
