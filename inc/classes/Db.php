@@ -650,10 +650,10 @@ class Db {
      * @param string $module
      * @return string
      */
-    public function _($str, $data, $module = 'core2') {
+    public function _($str, $data = [], $module = 'core2') {
 
         // DEPRECATED
-        if ($data && is_string($data) && ! $module) {
+        if ($data && is_string($data)) {
             $module = $data;
         }
 

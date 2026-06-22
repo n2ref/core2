@@ -58,7 +58,7 @@ class Common extends \Core2\Acl {
      * @param string $module
      * @return string
      */
-    public function _($str, $data, $module = '') {
+    public function _($str, $data = [], $module = '') {
 
         // DEPRECATED
         if ($data && is_string($data) && ! $module) {
