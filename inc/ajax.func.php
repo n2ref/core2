@@ -463,8 +463,8 @@ class ajaxFunc extends Common {
 
         $result = [];
 
-        if ( ! empty($data['control']["files|{$field_name}"])) {
-            $files = explode("|", $data['control']["files|{$field_name}"]);
+        if ( ! empty($this->data['control']["files|{$field_name}"])) {
+            $files = explode("|", $this->data['control']["files|{$field_name}"]);
 
             foreach ($files as $file) {
                 if ( ! $file) {
