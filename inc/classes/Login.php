@@ -30,7 +30,13 @@ class Login extends \Common {
 
         //-------------регистрация, аутентификация через форму------------------
         $uri = $route['module'];
-        parse_str($route['query'], $query);
+        $query = $route['query'];
+        if (!is_array($query)) {
+            $query = [];
+            if ($route['query']) {
+                parse_str($route['query'], $query);
+            }
+        }
         if (isset($query['core'])) {
             $uri = $query['core']; //FIXME DEPRECATED
         }
@@ -240,14 +246,10 @@ class Login extends \Common {
             $tpl->logo->assign('{logo}', $logo);
         }
         $danger = '';
-        if (!empty($this->config->session->cookie_secure)) {
-            //cookie работают только по HTTPS
-            $danger = $this->_("Вход возможен только по защищенному соединению.");
-        }
         $tpl->assign('{danger}', $danger);
         if ($auth = $this->isModuleInstalled('auth')) {
             if (isset($auth['submodules']['registration']) && $auth['submodules']['registration']['visible'] !== 'Y') {
-                //субмдуль регистрациивыключен
+                //субмдуль регистрации выключен
             }
             else {
                 $auth_config = $this->modAuth->moduleConfig->auth;

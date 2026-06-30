@@ -143,12 +143,14 @@ class Init extends Acl {
 
         // Парсим маршрут
         $route = (new Router())->getRoute();
+
         if (isset($route['api']) && !$this->auth) {
             if ($route['api'] == 'auth') {
                 //это запросы на регистрацию, восстановление пароля или OAUTH
                 require_once 'core2/inc/classes/Api.php';
                 header('Content-type: application/json; charset="utf-8"');
                 try {
+                    $route['query'] = http_build_query($route['query']); //DEPRECATED
                     return (new Core2\Api($route))->dispatchApi();
                 } catch (Exception $e) {
                     return Error::catchJsonException($e->getMessage(), $e->getCode());
@@ -257,7 +259,7 @@ class Init extends Acl {
 
             $login = new Login();
             $this->setupSkin();
-            parse_str($route['query'], $request);
+            $request = $route['query'];
             if (array_key_exists('X-Requested-With', Tool::getRequestHeaders())) {
                 if ( ! empty($request['module'])) {
                     throw new Exception('expired');
@@ -316,6 +318,7 @@ class Init extends Acl {
                 require_once 'core2/inc/classes/Api.php';
                 header('Content-type: application/json; charset="utf-8"');
                 try {
+                    $route['query'] = http_build_query($route['query']); //DEPRECATED
                     return (new Core2\Api($route))->dispatchApi();
                 } catch (Exception $e) {
                     return Error::catchJsonException($e->getMessage(), $e->getCode());

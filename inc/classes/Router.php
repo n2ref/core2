@@ -40,7 +40,7 @@ class Router extends Request
             'module'  => '',
             'action'  => 'index',
             'params'  => array(),
-            'query'   => $_SERVER['QUERY_STRING']
+            'query'   => $this->getQueryParams()
         );
 
         $co = count($temp2);
