@@ -695,7 +695,6 @@ class Db extends Table {
                     switch ($filter_column->getType()) {
                         case self::FILTER_DATE:
                         case self::FILTER_DATETIME:
-                        case self::FILTER_DATE_PERIOD:
                         case self::FILTER_NUMBER:
                             if (strpos($filter_field, 'ADD_SEARCH') !== false) {
                                 if ( ! empty($filter_value[0]) || ! empty($filter_value[1])) {
@@ -720,6 +719,35 @@ class Db extends Table {
                                 } elseif ( ! empty($filter_value[0]) && ! empty($filter_value[1])) {
                                     $quoted_value1 = $db->quote($filter_value[0]);
                                     $quoted_value2 = $db->quote($filter_value[1]);
+                                    $select->addWhere("{$filter_field} BETWEEN {$quoted_value1} AND {$quoted_value2}");
+                                }
+                            }
+                            break;
+
+                        case self::FILTER_DATE_PERIOD:
+                            if (strpos($filter_field, 'ADD_SEARCH') !== false) {
+                                if ( ! empty($filter_value[0]) || ! empty($filter_value[1])) {
+                                    $quoted_value1 = $db->quote($filter_value[0]);
+                                    $quoted_value2 = $db->quote($filter_value[1]);
+
+                                    $where = str_replace("ADD_SEARCH1", $quoted_value1, $filter_field);
+                                    $where = str_replace("ADD_SEARCH2", $quoted_value2, $where);
+
+                                    $select->addWhere($where);
+                                }
+
+                            } else {
+                                if ( ! empty($filter_value[0]) && empty($filter_value[1])) {
+                                    $quoted_value = $db->quote($filter_value[0]);
+                                    $select->addWhere("{$filter_field} >= {$quoted_value}");
+
+                                } elseif (empty($filter_value[0]) && ! empty($filter_value[1])) {
+                                    $quoted_value = $db->quote("{$filter_value[1]} 23:59:59");
+                                    $select->addWhere("{$filter_field} <= {$quoted_value}");
+
+                                } elseif ( ! empty($filter_value[0]) && ! empty($filter_value[1])) {
+                                    $quoted_value1 = $db->quote($filter_value[0]);
+                                    $quoted_value2 = $db->quote("{$filter_value[1]} 23:59:59");
                                     $select->addWhere("{$filter_field} BETWEEN {$quoted_value1} AND {$quoted_value2}");
                                 }
                             }
@@ -1045,21 +1073,6 @@ class Db extends Table {
     }
 
     /**
-    * Удаляет строку с данными
-    * иногда это нужно
-    * @param int $i
-    * @return bool
-    */
-    public function deleteRow(int $i): bool
-    {
-        if (isset($this->data_rows[$i])) {
-            unset($this->data_rows[$i]);
-            return true;
-        }
-        return false;
-    }
-
-    /**
      * Получение количества "всего" записей
      * @param Db\Select $select
      * @return int
@@ -1074,6 +1087,13 @@ class Db extends Table {
             unset($select_parts['LIMIT']);
         }
 
+        $query_params = $this->query_params;
+        //на случай "?" ":" в select части убираем такое-же кол-во параметров
+        preg_match_all('/\?|:\w+/', $select_parts['SELECT'], $select_params);
+        if(! empty($select_params[0]) && count($select_params[0])){
+            $query_params = array_slice($query_params, count($select_params[0]));
+        }
+
         $select_parts['SELECT'] = 1;
         if ( ! empty($select_parts['ORDER BY'])) {
             unset($select_parts['ORDER BY']);
@@ -1086,7 +1106,7 @@ class Db extends Table {
 
         //echo '<pre>'; var_dump($select_sql, count($this->db->fetchAll($select_sql, $this->query_params)) ); echo '</pre>'; exit();
 
-        return count($this->db->fetchAll($select_sql, $this->query_params));
+        return $this->db->fetchOne("SELECT count(1) FROM ({$select_sql}) as tttttt",$query_params);
     }
 
 
