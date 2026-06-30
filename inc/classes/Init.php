@@ -983,8 +983,7 @@ function post($func, $loc, $data) {
 
                 try {
                     // DEPRECATED
-                    parse_str($route['query'], $params);
-                    $data['params'] = $params;
+                    $data['params'] = $route['query'];
 
                     $mod_ajax->setData($data);
                     return $mod_ajax->$func($data);
