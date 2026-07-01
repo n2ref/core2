@@ -1119,8 +1119,7 @@ function post($func, $loc, $data) {
             if (method_exists($xajax, $func)) {
                 if (!empty($data['class_refid'])) $xajax->setRefId((int) $data['class_refid']);
                 try {
-                    parse_str($route['query'], $params);
-                    $data['params'] = $params;
+                    $data['params'] = $route['query'];
                     return $xajax->$func($data);
                 } catch (Exception $e) {
                     Error::catchXajax($e, $res);
