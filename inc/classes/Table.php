@@ -789,7 +789,6 @@ abstract class Table extends Acl {
             'records'            => $records,
         ];
 
-
         if ($this->edit_url) {
             $data['recordsEditUrl'] = $this->edit_url;
         }
@@ -934,6 +933,7 @@ abstract class Table extends Acl {
 
 
     /**
+     * Добавление под таблицей "легенды" (Указание категорий с данными)
      * @param array $items
      * @return void
      */

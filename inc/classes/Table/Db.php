@@ -1072,6 +1072,7 @@ class Db extends Table {
         $this->cachable = $is;
     }
 
+
     /**
      * Получение количества "всего" записей
      * @param Db\Select $select
@@ -1108,6 +1109,4 @@ class Db extends Table {
 
         return $this->db->fetchOne("SELECT count(1) FROM ({$select_sql}) as tttttt",$query_params);
     }
-
-
 }
