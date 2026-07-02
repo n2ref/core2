@@ -88,19 +88,41 @@ if (empty($config_origin['temp'])) {
     }
 }
 
+// Memcached для кеширования конфигурации
+$memcached = new Memcached();
+$memcached->addServer('localhost', 11211);
+$memcached->setOption(Memcached::OPT_CONNECT_TIMEOUT, 1000);
+$memcached->setOption(Memcached::OPT_TIMEOUT, 1);
+$memcached->setOption(Memcached::OPT_BINARY_PROTOCOL, true);
+
+$cacheKey = 'core2_config_' . md5($_SERVER['SERVER_NAME'] ?? 'production');
+$config = $memcached->get($cacheKey);
+$configLoaded = false;
+
 //обрабатываем общий конфиг
-try {
+if ($config === false) {
+    try {
 
-    $section = !empty($_SERVER['SERVER_NAME']) ? $_SERVER['SERVER_NAME'] : 'production';
+        $section = !empty($_SERVER['SERVER_NAME']) ? $_SERVER['SERVER_NAME'] : 'production';
 
-    $conf     = new Core2\Config($config_origin);
-    $config   = $conf->getData()->merge($conf->readIni($conf_file, $section));
+        $conf     = new Core2\Config($config_origin);
+        $config   = $conf->getData()->merge($conf->readIni($conf_file, $section));
 
 
-    $conf_d = __DIR__ . "/../../conf.ext.ini";
-    if (file_exists($conf_d)) {
-        $config->merge($conf->readIni($conf_d, $section));
+        $conf_d = __DIR__ . "/../../conf.ext.ini";
+        if (file_exists($conf_d)) {
+            $config->merge($conf->readIni($conf_d, $section));
+        }
+
+        $memcached->set($cacheKey, $config, 900);
+        $configLoaded = true;
     }
+    catch (Exception $e) {
+        Error::Exception($e->getMessage());
+    }
+} else {
+    $configLoaded = true;
+}
 
     if (empty($_SERVER['HTTPS'])) {
         if (isset($config->system) && ! empty($config->system->https)) {
@@ -113,7 +135,6 @@ try {
         date_default_timezone_set($tz);
     }
     if (!$config) throw new Exception("Unable to load configuration.");
-}
 catch (Exception $e) {
     Error::Exception($e->getMessage());
 }
