@@ -1,32 +1,4 @@
 <?php
-header('Content-Type: text/html; charset=utf-8');
-
-// Определяем DOCUMENT_ROOT (для прямых вызовов, например cron)
-define("DOC_ROOT", dirname(str_replace("//", "/", $_SERVER['SCRIPT_FILENAME'])) . "/");
-define("DOC_PATH", substr(DOC_ROOT, strlen(rtrim($_SERVER['DOCUMENT_ROOT'], '/'))) ? : '/');
-
-$autoload = __DIR__ . "/../../vendor/autoload.php";
-if (!file_exists($autoload)) {
-    \Core2\Error::Exception("Composer autoload is missing.");
-}
-
-require_once($autoload);
-require_once("Error.php");
-
-if ( ! empty($_SERVER['REQUEST_URI'])) {
-    $f = explode(".", basename(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH)));
-    if (!empty($f[1]) && in_array($f[1], ['txt', 'js', 'css', 'env'])) {
-        \Core2\Error::Exception("File not found", 404);
-        exit(); // FIXME Нужно убрать
-    }
-}
-
-require_once("Log.php");
-require_once("Theme.php");
-require_once 'Registry.php';
-require_once 'Config.php';
-require_once("Router.php");
-
 use Laminas\Session\Config\SessionConfig;
 use Laminas\Session\SessionManager;
 use Laminas\Session\SaveHandler\Cache AS SessionHandlerCache;
@@ -34,7 +6,6 @@ use Laminas\Session\Container as SessionContainer;
 use Laminas\Session\Validator\HttpUserAgent;
 use Laminas\Cache\Storage;
 use Core2\Acl;
-use Core2\I18n;
 use Core2\Login;
 use Core2\Registry;
 use Core2\Tool;
@@ -42,146 +13,7 @@ use Core2\Error;
 use Core2\Theme;
 use Core2\Router;
 
-
-$conf_file = DOC_ROOT . "conf.ini";
-
-if (!file_exists($conf_file)) {
-    Error::Exception("conf.ini is missing.", 404);
-}
-$config_origin = [
-    'system'       => ['name' => 'CORE2'],
-    'include_path' => '',
-    'temp'         => getenv('TMP'),
-    'debug'        => ['on' => false],
-    'session'      => [
-        'cookie_httponly'  => true,
-        'use_only_cookies' => true,
-    ],
-    'database' => [
-        'adapter' => 'Pdo_Mysql',
-        'params'  => [
-            'charset' => 'utf8',
-            'driver_options'=> [
-                PDO::ATTR_TIMEOUT => 5,
-//                PDO::ATTR_PERSISTENT => true,
-                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION
-            ],
-            'options' => [
-                'caseFolding'                => false,
-                'autoQuoteIdentifiers'       => true,
-                'allowSerialization'         => true,
-                'autoReconnectOnUnserialize' => true
-            ]
-        ],
-        'isDefaultTableAdapter' => true,
-        'profiler'              => [
-            'enabled' => false,
-            'class'   => 'Zend_Db_Profiler_Firebug',
-        ]
-    ],
-];
-// определяем путь к темповой папке
-if (empty($config_origin['temp'])) {
-    $config_origin['temp'] = sys_get_temp_dir();
-    if (empty($config_origin['temp'])) {
-        $config_origin['temp'] = "/tmp";
-    }
-}
-
-// Memcached для кеширования конфигурации
-$memcached = new Memcached();
-$memcached->addServer('localhost', 11211);
-$memcached->setOption(Memcached::OPT_CONNECT_TIMEOUT, 1000);
-$memcached->setOption(Memcached::OPT_TIMEOUT, 1);
-$memcached->setOption(Memcached::OPT_BINARY_PROTOCOL, true);
-
-$cacheKey = 'core2_config_' . md5($_SERVER['SERVER_NAME'] ?? 'production');
-$config = $memcached->get($cacheKey);
-$configLoaded = false;
-
-//обрабатываем общий конфиг
-if ($config === false) {
-    try {
-
-        $section = !empty($_SERVER['SERVER_NAME']) ? $_SERVER['SERVER_NAME'] : 'production';
-
-        $conf     = new Core2\Config($config_origin);
-        $config   = $conf->getData()->merge($conf->readIni($conf_file, $section));
-
-
-        $conf_d = __DIR__ . "/../../conf.ext.ini";
-        if (file_exists($conf_d)) {
-            $config->merge($conf->readIni($conf_d, $section));
-        }
-
-        $memcached->set($cacheKey, $config, 900);
-        $configLoaded = true;
-    }
-    catch (Exception $e) {
-        Error::Exception($e->getMessage());
-    }
-} else {
-    $configLoaded = true;
-}
-
-    if (empty($_SERVER['HTTPS'])) {
-        if (isset($config->system) && ! empty($config->system->https)) {
-            header('Location: https://' . $_SERVER['SERVER_NAME']);
-            exit(); // TODO нужно убрать
-        }
-    }
-    $tz = $config->system->timezone;
-    if (!empty($tz)) {
-        date_default_timezone_set($tz);
-    }
-    if (!$config) throw new Exception("Unable to load configuration.");
-catch (Exception $e) {
-    Error::Exception($e->getMessage());
-}
-
-// отладка приложения
-if ($config->debug->on) {
-    error_reporting(E_ALL);
-    ini_set('display_errors', 1);
-} else {
-    ini_set('display_errors', 0);
-}
-
-//проверяем настройки для базы данных
-if ($config->database) {
-    if (empty($config->database->adapter)) {
-        Error::Exception('Database adapter is empty!');
-    }
-    if (empty($config->database->params->dbname)) {
-        Error::Exception('Database name is empty!');
-    }
-}
-
-//конфиг стал только для чтения
-$config->setReadOnly();
-
-
-if (isset($config->include_path) && $config->include_path) {
-    set_include_path(get_include_path() . PATH_SEPARATOR . $config->include_path);
-}
-
-//подключаем мультиязычность
-require_once 'I18n.php';
-$translate = new I18n($config);
-
-//сохраняем конфиг
-Registry::set('config', $config);
-
-//обрабатываем конфиг ядра
-$core_conf_file = __DIR__ . "/../../conf.ini";
-if (file_exists($core_conf_file)) {
-    $config = new Core2\Config();
-    Registry::set('core_config', $config->readIni($core_conf_file, 'production'));
-}
-
-require_once 'Acl.php';
-require_once 'Common.php';
-require_once 'SSE.php';
+require_once __DIR__ . "/../../bootstrap.php";
 
 /**
  * Class Init
@@ -215,17 +47,17 @@ class Init extends Acl {
         if ($this->config->session) {
             $sess_config = new SessionConfig();
             $sess_config->setOptions([
-                'name' => $this->config->session->name ?? 'PHPSESSION',
-                'use_strict_mode' => true,
-                'use_cookies' => true,
+                'name'             => $this->config->session->name ?? 'PHPSESSION',
+                'use_strict_mode'  => true,
+                'use_cookies'      => true,
                 'use_only_cookies' => true,
-                'cookie_httponly' => true,
+                'cookie_httponly'  => true,
                 //'cookie_secure' => true,
-                'cookie_lifetime' => $this->config->session->cookie_lifetime ?? 7200,
-                'cookie_samesite' => 'Lax',
-                'gc_maxlifetime' => $this->config->session->remember_me_seconds ?? 7200,
-                'gc_probability' => 1,
-                'gc_divisor' => 100
+                'cookie_lifetime'  => $this->config->session->cookie_lifetime ?? 7200,
+                'cookie_samesite'  => 'Lax',
+                'gc_maxlifetime'   => $this->config->session->remember_me_seconds ?? 7200,
+                'gc_probability'   => 1,
+                'gc_divisor'       => 100,
             ]);
             if (!empty($this->config->session->save_path)) {
                 $sess_config->setSavePath($this->config->session->save_path);
@@ -311,11 +143,12 @@ class Init extends Acl {
 
     /**
      * The main dispatcher
-     *
      * @return mixed|string
      * @throws Exception
      */
-    public function dispatch() {
+    public function dispatch(): mixed {
+
+        header('Content-Type: text/html; charset=utf-8');
 
         // Парсим маршрут
         $route = (new Router())->getRoute();
