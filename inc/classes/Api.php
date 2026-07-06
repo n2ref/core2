@@ -28,6 +28,7 @@ class Api extends Acl
 
     /**
      * @return mixed
+     * @throws Exception
      */
     public function dispatchApi(): mixed {
 
@@ -35,45 +36,59 @@ class Api extends Acl
         $action = self::$route['action'];
 
         try {
-            if ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
-                if (!empty(self::$route['query'])) {
-                    //возможно это удаление из браузера
-                    if (str_starts_with(self::$route['query'], 'mod_') && str_contains(self::$route['query'], '.')) {
-                        //удаляют запись из таблицы
-                        $route = self::$route;
-                        $query = explode('=', $route['query']);
-                        $route['params'] = [
-                            '_resource' => key($route['params']),
-                            '_field' => $query[0],
-                            '_value' => $query[1]
-                        ];
-                        $route['query'] = '';
-                        Registry::set('route', $route);
-                        require_once 'core2/mod/admin/ModAdminApi.php';
-                        $coreController = new ModAdminApi();
-                        $out = $coreController->action_index();
-                        if (is_array($out)) {
-                            $out = json_encode($out);
-                        }
-                        return $out;
+            if ($_SERVER['REQUEST_METHOD'] === 'DELETE' && ! empty(self::$route['query'])) {
+                //возможно это удаление из браузера
+                parse_str(self::$route['query'], $query);
+
+                if ( ! empty($query['table']) &&
+                     ! empty($query['field']) &&
+                     ! empty($query['value']) &&
+                    str_starts_with($query['table'], 'mod_')
+                ) {
+                    //удаляют запись из таблицы
+                    $route           = self::$route;
+                    $route['params'] = [
+                        '_resource' => key($route['params']),
+                        '_table'    => $query['table'],
+                        '_field'    => $query['field'],
+                        '_value'    => $query['value'],
+                    ];
+                    $route['query']  = '';
+                    Registry::set('route', $route);
+
+                    require_once 'core2/mod/admin/ModAdminApi.php';
+                    $coreController = new ModAdminApi();
+                    $out            = $coreController->action_index();
+
+                    if (is_array($out)) {
+                        $out = json_encode($out);
                     }
+
+                    return $out;
                 }
             }
             Registry::set('context', array($module, $action));
 
             if ($module == 'admin') {
+                parse_str(self::$route['query'], $query);
+
                 require_once 'core2/mod/admin/ModAdminApi.php';
                 $coreController = new ModAdminApi();
                 $action         = "action_" . $action;
+
                 if (method_exists($coreController, $action)) {
-                    if (str_starts_with(self::$route['query'], 'core_') && str_contains(self::$route['query'], '.')) {
+                    if ( ! empty($query['table']) &&
+                         ! empty($query['field']) &&
+                         ! empty($query['value']) &&
+                         str_starts_with($query['table'], 'core_')
+                    ) {
                         //удаляют запись из интерфейса модуля Админ
                         $route = self::$route;
-                        $query = explode('=', $route['query']);
                         $route['params'] = [
                             '_resource' => key($route['params']),
-                            '_field' => $query[0],
-                            '_value' => $query[1]
+                            '_table'    => $query['table'],
+                            '_field'    => $query['field'],
+                            '_value'    => $query['value'],
                         ];
                         $route['query'] = '';
                         Registry::set('route', $route);
