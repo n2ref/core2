@@ -12,17 +12,25 @@ use Core2\Switches;
  */
 class ModAdminApi extends CommonApi
 {
+    /**
+     * @throws Exception
+     */
     public function action_index()
     {
         $params = $this->route['params'];
         switch ($_SERVER['REQUEST_METHOD']) {
             case 'DELETE':
-                if (isset($params['_resource']) && isset($params['_field']) && isset($params['_value'])) {
+                if (isset($params['_resource']) &&
+                    isset($params['_table']) &&
+                    isset($params['_field']) &&
+                    isset($params['_value'])
+                ) {
                     //это удаление из UI
                     if (empty($params['_resource'])) throw new \Exception("Не удалось определить местоположение данных для удаления.");
+                    if (empty($params['_table'])) throw new \Exception("Не удалось определить таблицу для удаления.");
                     if (empty($params['_field'])) throw new \Exception("Не удалось определить источник для удаления.");
                     if (empty($params['_value'])) throw new \Exception("Не удалось определить объекты для удаления.");
-                    return $this->indexDelete($params['_resource'], $params['_field'], explode(",", $params['_value']));
+                    return $this->indexDelete($params['_resource'], $params['_table'], $params['_field'], explode(",", $params['_value']));
                 }
                 //здесь друдие виды удаления
                 break;
@@ -151,9 +159,14 @@ class ModAdminApi extends CommonApi
             $msg = $this->translate->tr("Доступ запрещен!");
             throw new Exception($msg, 403);
         }
-        if (isset($params['_resource']) && isset($params['_field']) && isset($params['_value'])) {
+        if (isset($params['_resource']) &&
+            isset($params['_table']) &&
+            isset($params['_field']) &&
+            isset($params['_value'])
+        ) {
             //это удаление из UI
             if (empty($params['_resource'])) throw new Exception("Не удалось определить местоположение данных для удаления.");
+            if (empty($params['_table'])) throw new Exception("Не удалось определить таблицу для удаления.");
             if (empty($params['_field'])) throw new Exception("Не удалось определить источник для удаления.");
             if (empty($params['_value'])) throw new Exception("Не удалось определить объекты для удаления.");
             return explode(",", $params['_value']);
@@ -185,32 +198,39 @@ class ModAdminApi extends CommonApi
         }
     }
 
+
     /**
-     * @param $data
-     * @return array|bool|string|void|null
+     * @param string $resource
+     * @param string $table
+     * @param string $field
+     * @param array  $values
+     * @return array|bool|string
      * @throws Exception
      */
-    private function indexDelete($resource, $field, array $values)
+    private function indexDelete(string $resource, string $table, string $field, array $values)
     {
         try {
-
-            [$table, $refid] = explode(".", $field);
-
-            if ( ! $table || ! $refid) {
+            if ( ! $table || ! $field) {
                 throw new RuntimeException("Не удалось определить параметры удаления!");
             }
-            $admin      = false;
+
+            $admin = false;
+
             if (strpos($table, 'core_') === 0) {
                 //удаление в таблицах ядра
-                if (!$this->auth->ADMIN) throw new RuntimeException("Доступ запрещен");
+                if ( ! $this->auth->ADMIN) {
+                    throw new RuntimeException("Доступ запрещен");
+                }
+
                 $admin = true;
             }
 
-            if (!$admin) {
-//                $resource = explode('xxx', $resource);
+            if ( ! $admin) {
                 //кастомное удаление само должно проверять права на удаление
                 $custom = $this->customDelete($resource, $values);
-                if ($custom) return $custom;
+                if ($custom) {
+                    return $custom;
+                }
             }
 
             $delete_all   = $this->checkAcl($resource, 'delete_all');
@@ -253,7 +273,7 @@ class ModAdminApi extends CommonApi
         $this->db->beginTransaction();
         try {
             foreach ($values as $key) {
-                $where = array($this->db->quoteInto("`$refid` = ?", $key));
+                $where = array($this->db->quoteInto("`$field` = ?", $key));
                 if ($authorOnly) {
                     $where[] = $this->db->quoteInto("author = ?", $auth->NAME);
                 }
@@ -261,7 +281,7 @@ class ModAdminApi extends CommonApi
                 else $this->db->delete($table, $where);
             }
             $this->db->commit();
-            $this->emit('delete', [$table . "." . $refid => $values]); //генерируем событие удаления для слушателей
+            $this->emit('delete', [$table . "." . $field => $values]); //генерируем событие удаления для слушателей
             return true;
         } catch (Exception $e) {
             $this->db->rollBack();

@@ -241,6 +241,97 @@ class Common extends \Core2\Acl {
 	}
 
 
+    /**
+     * Запуск расчета цен спецификаций для калькуляции
+     * @param string $module
+     * @param string $method
+     * @param array  $params
+     * @return string
+     * @throws Exception
+     */
+    public function startCli(string $module, string $method, array $params = []): string {
+
+        if ( ! function_exists('exec')) {
+            throw new \Exception("function 'exec' not found");
+        }
+
+        $php_path = $this->config->php && $this->config->php->path ? $this->config->php->path : '';
+
+        if ( ! $php_path) {
+            $system_php_path = exec('which php');
+            if ( ! empty($system_php_path)) {
+                $php_path = $system_php_path;
+            } else {
+                throw new \Exception('php not found');
+            }
+        }
+
+        $cmd = sprintf(
+            '%s %s --module %s --action %s --section %s',
+            $php_path,
+            DOC_ROOT . 'core2/cli.php',
+            $module,
+            $method,
+            $this->config->system ? $this->config->system->host : '',
+        );
+
+        foreach ($params as $param) {
+            $cmd .= " -p '{$param}'";
+        }
+
+        $output = [];
+        exec($cmd, $output);
+
+        return trim(implode('', $output));
+    }
+
+
+    /**
+     * Запуск расчета цен спецификаций для калькуляции
+     * @param string $module
+     * @param string $method
+     * @param array  $params
+     * @return int PID
+     * @throws Exception
+     */
+    public function startCliBg(string $module, string $method, array $params = []): int {
+
+        if ( ! function_exists('exec')) {
+            throw new \Exception("function 'exec' not found");
+        }
+
+        $php_path = $this->config->php && $this->config->php->path ? $this->config->php->path : '';
+
+        if ( ! $php_path) {
+            $system_php_path = exec('which php');
+            if ( ! empty($system_php_path)) {
+                $php_path = $system_php_path;
+            } else {
+                throw new \Exception('php not found');
+            }
+        }
+
+        $cmd = sprintf(
+            '%s %s --module %s --action %s --section %s',
+            $php_path,
+            DOC_ROOT . 'core2/cli.php',
+            $module,
+            $method,
+            $this->config->system ? $this->config->system->host : '',
+        );
+
+        foreach ($params as $param) {
+            $cmd .= " -p '{$param}'";
+        }
+
+        $cmd .= " 2>&1 & echo $!";
+
+        $output = [];
+        exec($cmd, $output);
+
+        return (int)trim(current($output));
+    }
+
 	
 	/**
 	 * Check if $r in available request. If no, unset request key
