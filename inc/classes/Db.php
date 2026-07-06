@@ -366,6 +366,7 @@ class Db
                     );
                 }
 
+                // Deprecated Вместо этого в конфиге надо указывать database.params.driver_options.1002 = "SET sql_mode = ' ... '"
                 if ($database->sql_mode) {
                     $db->query("SET SESSION sql_mode = ?", $database->sql_mode);
                 }
