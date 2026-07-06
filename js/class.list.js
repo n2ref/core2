@@ -279,7 +279,7 @@ var listx = {
 						const module = searchParams.get("module");
 						let action = searchParams.get("action");
 						if (!action) action = 'index';
-						fetch(module + "/" + action + "/" + id + "?" + res[1] + "." + res[2] + "=" + val, {
+						fetch(module + "/" + action + "/" + id + "?table=" + res[1] + "&field=" + res[2] + "&value=" + val, {
 							method: 'DELETE',
 							credentials: 'same-origin',
 							headers: {'X-Requested-With': 'XMLHttpRequest'}
