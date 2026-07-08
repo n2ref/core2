@@ -1,166 +1,20 @@
 <?php
-header('Content-Type: text/html; charset=utf-8');
-
-// Определяем DOCUMENT_ROOT (для прямых вызовов, например cron)
-define("DOC_ROOT", dirname(str_replace("//", "/", $_SERVER['SCRIPT_FILENAME'])) . "/");
-define("DOC_PATH", substr(DOC_ROOT, strlen(rtrim($_SERVER['DOCUMENT_ROOT'], '/'))) ? : '/');
-
-$autoload = __DIR__ . "/../../vendor/autoload.php";
-if (!file_exists($autoload)) {
-    \Core2\Error::Exception("Composer autoload is missing.");
-}
-
-require_once($autoload);
-require_once("Error.php");
-
-if ( ! empty($_SERVER['REQUEST_URI'])) {
-    $f = explode(".", basename(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH)));
-    if (!empty($f[1]) && in_array($f[1], ['txt', 'js', 'css', 'env'])) {
-        \Core2\Error::Exception("File not found", 404);
-        exit(); // FIXME Нужно убрать
-    }
-}
-
-require_once("Log.php");
-require_once("Theme.php");
-require_once 'Registry.php';
-require_once 'Config.php';
-require_once("Router.php");
-
+use Laminas\Session\Config\SessionConfig;
+use Laminas\Session\SessionManager;
+use Laminas\Session\SaveHandler\Cache AS SessionHandlerCache;
+use Laminas\Session\Container as SessionContainer;
+use Laminas\Session\Validator\HttpUserAgent;
+use Laminas\Cache\Storage;
 use Core2\Acl;
-use Core2\Error;
-use Core2\I18n;
 use Core2\Login;
 use Core2\Registry;
-use Core2\Router;
-use Core2\Theme;
 use Core2\Tool;
-use Laminas\Cache\Storage;
-use Laminas\Session\Config\SessionConfig;
-use Laminas\Session\Container as SessionContainer;
-use Laminas\Session\SaveHandler\Cache as SessionHandlerCache;
-use Laminas\Session\SessionManager;
-use Laminas\Session\Validator\HttpUserAgent;
+use Core2\Error;
+use Core2\Theme;
+use Core2\Router;
 
+require_once __DIR__ . "/../../bootstrap.php";
 
-$conf_file = DOC_ROOT . "conf.ini";
-
-if (!file_exists($conf_file)) {
-    Error::Exception("conf.ini is missing.", 404);
-}
-$config_origin = [
-    'system'       => ['name' => 'CORE2'],
-    'include_path' => '',
-    'temp'         => getenv('TMP'),
-    'debug'        => ['on' => false],
-    'session'      => [
-        'cookie_httponly'  => true,
-        'use_only_cookies' => true,
-    ],
-    'database' => [
-        'adapter' => 'Pdo_Mysql',
-        'params'  => [
-            'charset' => 'utf8',
-            'driver_options'=> [
-                PDO::ATTR_TIMEOUT => 5,
-//                PDO::ATTR_PERSISTENT => true,
-                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION
-            ],
-            'options' => [
-                'caseFolding'                => false,
-                'autoQuoteIdentifiers'       => true,
-                'allowSerialization'         => true,
-                'autoReconnectOnUnserialize' => true
-            ]
-        ],
-        'isDefaultTableAdapter' => true,
-        'profiler'              => [
-            'enabled' => false,
-            'class'   => 'Zend_Db_Profiler_Firebug',
-        ]
-    ],
-];
-// определяем путь к темповой папке
-if (empty($config_origin['temp'])) {
-    $config_origin['temp'] = sys_get_temp_dir();
-    if (empty($config_origin['temp'])) {
-        $config_origin['temp'] = "/tmp";
-    }
-}
-
-//обрабатываем общий конфиг
-try {
-
-    $section = !empty($_SERVER['SERVER_NAME']) ? $_SERVER['SERVER_NAME'] : 'production';
-
-    $conf     = new Core2\Config($config_origin);
-    $config   = $conf->getData()->merge($conf->readIni($conf_file, $section));
-
-
-    $conf_d = __DIR__ . "/../../conf.ext.ini";
-    if (file_exists($conf_d)) {
-        $config->merge($conf->readIni($conf_d, $section));
-    }
-
-    if (empty($_SERVER['HTTPS'])) {
-        if (isset($config->system) && ! empty($config->system->https)) {
-            header('Location: https://' . $_SERVER['SERVER_NAME']);
-            exit(); // TODO нужно убрать
-        }
-    }
-    $tz = $config->system->timezone;
-    if (!empty($tz)) {
-        date_default_timezone_set($tz);
-    }
-    if (!$config) throw new Exception("Unable to load configuration.");
-}
-catch (Exception $e) {
-    Error::Exception($e->getMessage());
-}
-
-// отладка приложения
-if ($config->debug->on) {
-    error_reporting(E_ALL);
-    ini_set('display_errors', 1);
-} else {
-    ini_set('display_errors', 0);
-}
-
-//проверяем настройки для базы данных
-if ($config->database) {
-    if (empty($config->database->adapter)) {
-        Error::Exception('Database adapter is empty!');
-    }
-    if (empty($config->database->params->dbname)) {
-        Error::Exception('Database name is empty!');
-    }
-}
-
-//конфиг стал только для чтения
-$config->setReadOnly();
-
-
-if (isset($config->include_path) && $config->include_path) {
-    set_include_path(get_include_path() . PATH_SEPARATOR . $config->include_path);
-}
-
-//подключаем мультиязычность
-require_once 'I18n.php';
-$translate = new I18n($config);
-
-//сохраняем конфиг
-Registry::set('config', $config);
-
-//обрабатываем конфиг ядра
-$core_conf_file = __DIR__ . "/../../conf.ini";
-if (file_exists($core_conf_file)) {
-    $config = new Core2\Config();
-    Registry::set('core_config', $config->readIni($core_conf_file, 'production'));
-}
-
-require_once 'Acl.php';
-require_once 'Common.php';
-require_once 'SSE.php';
 
 
 /**
@@ -190,11 +44,31 @@ class Init extends Acl {
         //сохраняем параметры сессии
         if ($this->config->session) {
             $sess_config = new SessionConfig();
-            $sess_config->setOptions($this->config->session);
+            $sess_config->setOptions([
+                'name'             => $this->config->session->name ?? 'PHPSESSION',
+                'use_strict_mode'  => true,
+                'use_cookies'      => true,
+                'use_only_cookies' => true,
+                'cookie_httponly'  => true,
+                //'cookie_secure' => true,
+                'cookie_lifetime'  => $this->config->session->cookie_lifetime ?? 7200,
+                'cookie_samesite'  => 'Lax',
+                'gc_maxlifetime'   => $this->config->session->remember_me_seconds ?? 7200,
+                'gc_probability'   => 1,
+                'gc_divisor'       => 100,
+            ]);
+            if (!empty($this->config->session->save_path)) {
+                $sess_config->setSavePath($this->config->session->save_path);
+            }
+            if (!empty($this->config->session->cookie_secure)) {
+                //cookie работают только по HTTPS
+                $sess_config->setCookieSecure($this->config->session->cookie_secure);
+            }
             $sess_manager = new SessionManager($sess_config);
             //$sess_manager->setStorage(new SessionStorage());
 
             $sess_manager->getValidatorChain()->attach('session.validate', [new HttpUserAgent(), 'isValid']);
+            //$sess_manager->getValidatorChain()->attach('session.validate', [new Csrf(), 'isValid']);
             if ($this->config->session->phpSaveHandler) {
                 $options = ['namespace' => $_SERVER['SERVER_NAME'] . ":Session"];
                 if ($this->config->session->remember_me_seconds) $options['ttl'] = $this->config->session->remember_me_seconds;
@@ -202,12 +76,25 @@ class Init extends Acl {
 
                 if ($this->config->session->saveHandler === 'memcached') {
                     $adapter = new Storage\Adapter\Memcached($options);
-                    $sess_manager->setSaveHandler(new SessionHandlerCache($adapter));
                 } elseif ($this->config->session->phpSaveHandler === 'redis') {
+                    $options = new Storage\Adapter\RedisOptions();
+                    $options->setServer(!empty($this->config->session->options->server) ? $this->config->session->options->server->toArray() : ['host' => 'localhost', 'port' => 6379]);
+                    if (!empty($this->config->session->options->server->password)) {
+                        $options->setPassword($this->config->session->options->server->password);
+                    }
+                    $options->setDatabase(1)
+                        ->setNamespace($_SERVER['SERVER_NAME'] . ":Session")
+                        ->setTtl($this->config->session->options->ttl ?? $sess_config->getGcMaxlifetime());
+//                    $libOptions = [
+//                        'read_timeout' => 2.5,
+//                        'retry_interval' => 100
+//                    ];
+//                    $options->setLibOptions($libOptions);
+//                    $options->setSerializer(Redis::SERIALIZER_PHP);
                     $adapter = new Storage\Adapter\Redis($options);
-//                        $sess_manager->getStorage()->markImmutable();
-                    $sess_manager->setSaveHandler(new SessionHandlerCache($adapter));
                 }
+//                $sess_manager->getStorage()->markImmutable();
+                $sess_manager->setSaveHandler(new SessionHandlerCache($adapter));
             }
 
             //сохраняем менеджер сессий
@@ -247,20 +134,23 @@ class Init extends Acl {
 
     /**
      * The main dispatcher
-     *
      * @return mixed|string
      * @throws Exception
      */
-    public function dispatch() {
+    public function dispatch(): mixed {
+
+        header('Content-Type: text/html; charset=utf-8');
 
         // Парсим маршрут
-        $route = (new Router())::$route;
+        $route = (new Router())->getRoute();
+
         if (isset($route['api']) && !$this->auth) {
             if ($route['api'] == 'auth') {
                 //это запросы на регистрацию, восстановление пароля или OAUTH
                 require_once 'core2/inc/classes/Api.php';
                 header('Content-type: application/json; charset="utf-8"');
                 try {
+                    $route['query'] = http_build_query($route['query']); //DEPRECATED
                     return (new Core2\Api($route))->dispatchApi();
                 } catch (Exception $e) {
                     return Error::catchJsonException($e->getMessage(), $e->getCode());
@@ -285,13 +175,23 @@ class Init extends Acl {
 
             if (isset($route['module'])) {
                 if (isset($route['api']) && $route['api'] === 'openapi') {
-                    require_once "OpenApiSpec.php";
-                    $schema = new \Core2\OpenApiSpec();
+
+                    if ($route['action'] == 'core2.json') {
+                        define("SERVER", ( ! empty($_SERVER['HTTPS']) ? 'https://' : 'http://') . $_SERVER['SERVER_NAME'] . DOC_PATH);
+                        //генерация свагера для общего API
+                        require_once "OpenApi.php";
+                        header("Cache-Control: no-cache");
+                        $schema = new \Core2\OpenApi();
+                        $html   = $schema->render();
+                        return $html;
+                    }
 
                     if ($route['action'] == 'sections') {
+                        require_once "OpenApiSpec.php";
                         header('Content-Type: application/json');
-
+                        $schema = new \Core2\OpenApiSpec();
                         $this->setupAcl();
+
                         if ( ! empty($route['params'])) {
                             $section = key($route['params']);
                             return json_encode($schema->getSectionSchema($section));
@@ -311,6 +211,11 @@ class Init extends Acl {
                     $sse = new Core2\SSE();
                     $sse->run();
                     return '';
+                } elseif ($route['module'] === 'change_pass') {
+                    require_once 'Login.php';
+                    $login = new Login();
+                    $this->setupSkin();
+                    return $login->dispatch($route);
                 }
             }
 
@@ -321,6 +226,9 @@ class Init extends Acl {
 
             $this->logActivity($logExclude);
             //TODO CHECK DIRECT REQUESTS except iframes
+
+            //Проверка устаревания пароля
+            $this->checkExpired();
 
             require_once 'Zend_Session_Namespace.php'; //DEPRECATED
             require_once 'core2/inc/Interfaces/Delete.php';
@@ -351,7 +259,7 @@ class Init extends Acl {
 
             $login = new Login();
             $this->setupSkin();
-            parse_str($route['query'], $request);
+            $request = $route['query'];
             if (array_key_exists('X-Requested-With', Tool::getRequestHeaders())) {
                 if ( ! empty($request['module'])) {
                     throw new Exception('expired');
@@ -410,6 +318,7 @@ class Init extends Acl {
                 require_once 'core2/inc/classes/Api.php';
                 header('Content-type: application/json; charset="utf-8"');
                 try {
+                    $route['query'] = http_build_query($route['query']); //DEPRECATED
                     return (new Core2\Api($route))->dispatchApi();
                 } catch (Exception $e) {
                     return Error::catchJsonException($e->getMessage(), $e->getCode());
@@ -496,6 +405,39 @@ class Init extends Acl {
                 }
 
             }
+        }
+    }
+
+
+    /**
+     * Проверка на устаревание пароля пользователя
+     * @return void
+     * @throws Exception
+     */
+    private function checkExpired()
+    {
+
+        if ($this->config?->registry?->pass_expired == 'Y') {
+            if ( ! empty($this->auth->check_expired)) {
+                return;
+            }
+
+            if ( ! empty($this->config->registry->pass_expired_exception_user_id)) {
+                $exception_ids = explode(',', $this->config->registry->pass_expired_exception_user_id);
+                if (in_array($this->auth->ID, $exception_ids)) {
+                    $this->auth->check_expired = 1;
+                    return;
+                }
+            }
+
+            $data_user = $this->dataUsers->getUserById($this->auth->ID);
+
+            if (
+                (new DateTime($data_user['date_expired'])) < (new DateTime())) {
+                header('Location: /change_pass');
+                exit;
+            }
+            $this->auth->check_expired = 1;
         }
     }
 
@@ -703,7 +645,7 @@ class Init extends Acl {
                     //http basic auth allowed
                     [$login, $password] = explode(':', base64_decode(substr($_SERVER['HTTP_AUTHORIZATION'], 6)));
                     $user = $this->dataUsers->getUserByLogin($login);
-                    if ($user && $user['u_pass'] === Tool::pass_salt(md5($password))) {
+                    if ($user && Tool::password_verify_secure($password, (string)$user['u_pass'])) {
                         $auth = new \StdClass();
 
                         $auth->LIVEID = 0;
@@ -985,14 +927,23 @@ function post($func, $loc, $data) {
     if ($route['module'] == 'admin') {
         require_once __DIR__ . "/../../mod/admin/ModAjax.php";
         $auth = Registry::get('auth');
-        if ( ! $auth->ADMIN) throw new Exception(911);
 
-        $xajax = new ModAjax($res);
-        if (method_exists($xajax, $func)) {
-            if (!empty($data['class_refid'])) $xajax->setRefId((int) $data['class_refid']);
-            $xajax->setupAcl();
+        if ( ! $auth->ADMIN) {
+            throw new Exception(911);
+        }
+
+        $mod_ajax = new ModAjax($res);
+
+        if (method_exists($mod_ajax, $func)) {
+            if ( ! empty($data['class_refid'])) {
+                $mod_ajax->setRefId((int)$data['class_refid']);
+            }
+
+            $mod_ajax->setupAcl();
+
             try {
-                return $xajax->$func($data);
+                $mod_ajax->setData($data);
+                return $mod_ajax->$func($data);
             } catch (Exception $e) {
                 Error::catchXajax($e, $res);
             }
@@ -1012,23 +963,31 @@ function post($func, $loc, $data) {
         }
 
         $location  = $acl->getModuleLocation($route['module']);
-        $file_path = $location . "/ModAjax.php";
+        $file_path = "{$location}/ModAjax.php";
 
         if (file_exists($file_path)) {
-            $autoload = $location . "/vendor/autoload.php";
+            $autoload = "{$location}/vendor/autoload.php";
             if (file_exists($autoload)) {
                 require_once $autoload;
             }
 
             require_once $file_path;
-            $xajax = new ModAjax($res);
-            $func = 'ax' . ucfirst($func);
-            if (method_exists($xajax, $func)) {
-                if (!empty($data['class_refid'])) $xajax->setRefId((int) $data['class_refid']);
+
+            $mod_ajax = new ModAjax($res);
+            $func     = 'ax' . ucfirst($func);
+
+            if (method_exists($mod_ajax, $func)) {
+                if ( ! empty($data['class_refid'])) {
+                    $mod_ajax->setRefId((int)$data['class_refid']);
+                }
+
                 try {
-                    parse_str($route['query'], $params);
-                    $data['params'] = $params;
-                    return $xajax->$func($data);
+                    // DEPRECATED
+                    $data['params'] = $route['query'];
+
+                    $mod_ajax->setData($data);
+                    return $mod_ajax->$func($data);
+
                 } catch (Exception $e) {
                     Error::catchXajax($e, $res);
                 }

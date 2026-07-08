@@ -687,7 +687,7 @@ class listTable extends initList {
                     //$sql_value = stripslashes($sql_value);
                     
                     if ($value['type'] == 'function') {
-                        eval("\$sql_value = " . $value['processing'] . "(\$row);");
+                        $sql_value = $this->safeProcessRowFunction($value['processing'] ?? '', $row, $sql_value);
                     } elseif ($value['type'] == 'html') {
                         //
                     } else {
@@ -714,8 +714,7 @@ class listTable extends initList {
                 }
                 foreach ($this->paintCondition as $ckey => $cvalue) {
                     $tres = $this->replaceTCOL($row, $cvalue);
-                    $a = 0;
-                    eval("if ($tres) \$a = 1;");
+                    $a = $this->safeEvaluateCondition($tres);
                     if ($a) {
                         $this->metadata[$k] = array('paintColor' => '', 'fontColor' => '', 'fontWeight' => '');
                         if (!empty($this->paintColor[$ckey])) $this->metadata[$k]['paintColor'] = $this->paintColor[$ckey];
@@ -1514,11 +1513,13 @@ class listTable extends initList {
     /**
      * Print grid HTML
      * @return void
+     * @throws Exception
      */
-    public function showTable() {
+    public function showTable(): void {
+
         if ($this->checkAcl($this->resource, 'list_all') || $this->checkAcl($this->resource, 'list_owner')) {
             $this->makeTable();
-            $loc = $this->ajax ? $_SERVER['QUERY_STRING'] . "&__{$this->resource}=ajax" : $_SERVER['QUERY_STRING'];
+            $loc = $this->ajax ? "{$_SERVER['REQUEST_URI']}&__{$this->resource}=ajax" : $_SERVER['REQUEST_URI'];
 
             echo "<script>
                 if (!listx){

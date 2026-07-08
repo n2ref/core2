@@ -273,46 +273,57 @@ var listx = {
 					var container = '';
 					if (isAjax) var container = document.getElementById(listx.getDomId(id)).parentNode;
 					if (listx.loc[id]) {
-						const searchParams = new URLSearchParams(listx.loc[id]);
+						const parts = listx.loc[id].split('php?');
+						const paramsString = parts.length > 1 ? parts[1] : listx.loc[id];
+						const searchParams = new URLSearchParams(paramsString);
 						const module = searchParams.get("module");
 						let action = searchParams.get("action");
 						if (!action) action = 'index';
-						$.ajax({
-							method: "DELETE",
-							dataType: "json",
-							url: module + "/" + action + "/" + id + "?" + res[1] + "." + res[2] + "=" + val
-						}).success(function (data) {
-							if (data && data.error) {
-								var msg = data.error ? data.error : "Не удалось выполнить удаление";
-								$("#main_" + id + "_error").html(msg);
-								$("#main_" + id + "_error").show();
-							} else {
-								var loc = listx.loc[id];
-								if (data) {
-									if (data.notice) {
-										CoreUI.notice.create(data.notice);
-									}
-									if (data.alert) {
-										alert(data.alert);
-									}
-									if (data.loc) loc = data.loc;
+						fetch(module + "/" + action + "/" + id + "?table=" + res[1] + "&field=" + res[2] + "&value=" + val, {
+							method: 'DELETE',
+							credentials: 'same-origin',
+							headers: {'X-Requested-With': 'XMLHttpRequest'}
+						})
+							.then(function (response) {
+								if (!response.ok) {
+									throw new Error('Не удалось выполнить удаление');
 								}
-								load(loc, '', container, function () {
-									if (listx.reloadEvents.length > 0) {
-										$.each(listx.reloadEvents, function () {
-											if (this.list_id === id) {
-												this.func();
-											}
-										})
+								return response.json();
+							})
+							.then(function (data) {
+								if (data && data.error) {
+									var msg = data.error ? data.error : "Не удалось выполнить удаление";
+									$("#main_" + id + "_error").html(msg);
+									$("#main_" + id + "_error").show();
+								} else {
+									var loc = listx.loc[id];
+									if (data) {
+										if (data.notice) {
+											CoreUI.notice.create(data.notice);
+										}
+										if (data.alert) {
+											alert(data.alert);
+										}
+										if (data.loc) loc = data.loc;
 									}
-									preloader.callback();
-								});
-							}
-						}).fail(function () {
-							alert("Не удалось выполнить удаление");
-						}).always(function () {
-							preloader.hide();
-						});
+									load(loc, '', container, function () {
+										if (listx.reloadEvents.length > 0) {
+											$.each(listx.reloadEvents, function () {
+												if (this.list_id === id) {
+													this.func();
+												}
+											})
+										}
+										preloader.callback();
+									});
+								}
+							})
+							.catch(function () {
+								alert("Не удалось выполнить удаление");
+							})
+							.finally(function () {
+								preloader.hide();
+							});
 					}
 				}
 			} else {

@@ -21,7 +21,9 @@ class Db extends Table {
     protected $is_fetched    = false;
     protected $query_parts   = [];
     private $_db;
-    private $cachable = false;
+    private $cachable        = false;
+    protected $is_round_calc = false;
+    protected int $round_calc_count = 1000; //максимально кол-во записей при приблизительном подсчёте
 
 
     /**
@@ -80,6 +82,31 @@ class Db extends Table {
 
         $this->order = $order;
     }
+
+    /**
+     * Использование примерного подсчета количества
+     * @param bool $is_round_calc
+     * @return void
+     */
+    public function setRoundCalc(bool $is_round_calc) {
+
+        $this->is_round_calc = $is_round_calc;
+    }
+
+
+    /**
+     * @param int $count
+     * @return void
+     * @throws \Exception
+     */
+    public function setRoundCalcCount(int $count)
+    {
+        if($count < 0){
+            throw new \Exception('Только положительное число');
+        }
+        $this->round_calc_count = $count;
+    }
+
 
 
     /**
@@ -668,7 +695,6 @@ class Db extends Table {
                     switch ($filter_column->getType()) {
                         case self::FILTER_DATE:
                         case self::FILTER_DATETIME:
-                        case self::FILTER_DATE_PERIOD:
                         case self::FILTER_NUMBER:
                             if (strpos($filter_field, 'ADD_SEARCH') !== false) {
                                 if ( ! empty($filter_value[0]) || ! empty($filter_value[1])) {
@@ -693,6 +719,35 @@ class Db extends Table {
                                 } elseif ( ! empty($filter_value[0]) && ! empty($filter_value[1])) {
                                     $quoted_value1 = $db->quote($filter_value[0]);
                                     $quoted_value2 = $db->quote($filter_value[1]);
+                                    $select->addWhere("{$filter_field} BETWEEN {$quoted_value1} AND {$quoted_value2}");
+                                }
+                            }
+                            break;
+
+                        case self::FILTER_DATE_PERIOD:
+                            if (strpos($filter_field, 'ADD_SEARCH') !== false) {
+                                if ( ! empty($filter_value[0]) || ! empty($filter_value[1])) {
+                                    $quoted_value1 = $db->quote($filter_value[0]);
+                                    $quoted_value2 = $db->quote($filter_value[1]);
+
+                                    $where = str_replace("ADD_SEARCH1", $quoted_value1, $filter_field);
+                                    $where = str_replace("ADD_SEARCH2", $quoted_value2, $where);
+
+                                    $select->addWhere($where);
+                                }
+
+                            } else {
+                                if ( ! empty($filter_value[0]) && empty($filter_value[1])) {
+                                    $quoted_value = $db->quote($filter_value[0]);
+                                    $select->addWhere("{$filter_field} >= {$quoted_value}");
+
+                                } elseif (empty($filter_value[0]) && ! empty($filter_value[1])) {
+                                    $quoted_value = $db->quote("{$filter_value[1]} 23:59:59");
+                                    $select->addWhere("{$filter_field} <= {$quoted_value}");
+
+                                } elseif ( ! empty($filter_value[0]) && ! empty($filter_value[1])) {
+                                    $quoted_value1 = $db->quote($filter_value[0]);
+                                    $quoted_value2 = $db->quote("{$filter_value[1]} 23:59:59");
                                     $select->addWhere("{$filter_field} BETWEEN {$quoted_value1} AND {$quoted_value2}");
                                 }
                             }
@@ -839,18 +894,12 @@ class Db extends Table {
         $this->query_parts = $select->getSqlParts();
 
         if ($this->is_round_calc) {
-            $select_sql = $select->getSql();
 
-            if (strpos($select_sql, ' SQL_CALC_FOUND_ROWS') !== false) {
-                $select_sql = str_replace(' SQL_CALC_FOUND_ROWS', "", $select_sql);
-            }
-
-            $explain = $db->fetchAll('EXPLAIN ' . $select_sql, $this->query_params);
-
-            foreach ($explain as $value) {
-                if ($value['rows'] > $this->records_total_round) {
-                    $this->records_total_round = $value['rows'];
-                }
+            $count = $this->getCountSql($select);
+            if ($count < $this->round_calc_count) {
+                $this->records_total_round = $count;
+            } else {
+                $this->records_total_round = $this->round_calc_count;
             }
 
             $select->setLimit($records_per_page, $offset);
@@ -874,13 +923,11 @@ class Db extends Table {
                 }
             }
 
-        } else {
+        }
+        else
+        {
             $select->setLimit($records_per_page, $offset);
             $select_sql = $select->getSql();
-
-            if (strpos($select_sql, ' SQL_CALC_FOUND_ROWS') === false) {
-                $select_sql = preg_replace('~^(\s*SELECT\s+)~', "$1SQL_CALC_FOUND_ROWS ", $select_sql);
-            }
 
             $this->query_result = $select_sql;
 
@@ -895,17 +942,18 @@ class Db extends Table {
 
                 if ( ! isset($cache_data)) {
                     $result = $db->fetchAll($select_sql, $this->query_params);
-                    $this->records_total = $db->fetchOne("SELECT FOUND_ROWS()");
+                    $count = $this->getCountSql($select);
+                    $this->records_total = $count;
 
                     $this->cache->setItem($cache_key, [
                         'data'          => $result,
-                        'records_total' => $this->records_total,
+                        'records_total' => $count,
                     ]);
                 }
 
             } else {
                 $result              = $db->fetchAll($select_sql, $this->query_params);
-                $this->records_total = $db->fetchOne("SELECT FOUND_ROWS()");
+                $this->records_total = $this->getCountSql($select);
             }
         }
 
@@ -1024,18 +1072,41 @@ class Db extends Table {
         $this->cachable = $is;
     }
 
+
     /**
-     * Удаляет строку с данными
-     * иногда это нужно
-     * @param int $i
-     * @return bool
+     * Получение количества "всего" записей
+     * @param Db\Select $select
+     * @return int
      */
-    public function deleteRow(int $i): bool
-    {
-        if (isset($this->data_rows[$i])) {
-            unset($this->data_rows[$i]);
-            return true;
+    private function getCountSql( Table\Db\Select $select){
+
+        $select_parts = $select->getSqlParts();
+
+        if ($this->is_round_calc) {
+            $select_parts['LIMIT'] = $this->round_calc_count;
+        } else {
+            unset($select_parts['LIMIT']);
         }
-        return false;
+
+        $query_params = $this->query_params;
+        //на случай "?" ":" в select части убираем такое-же кол-во параметров
+        preg_match_all('/\?|:\w+/', $select_parts['SELECT'], $select_params);
+        if(! empty($select_params[0]) && count($select_params[0])){
+            $query_params = array_slice($query_params, count($select_params[0]));
+        }
+
+        $select_parts['SELECT'] = 1;
+        if ( ! empty($select_parts['ORDER BY'])) {
+            unset($select_parts['ORDER BY']);
+        }
+
+        $select_sql = '';
+        foreach ($select_parts as $key => $part){
+            $select_sql .= ' ' . $key . ' ' . $part;
+        }
+
+        //echo '<pre>'; var_dump($select_sql, count($this->db->fetchAll($select_sql, $this->query_params)) ); echo '</pre>'; exit();
+
+        return $this->db->fetchOne("SELECT count(1) FROM ({$select_sql}) as tttttt",$query_params);
     }
 }

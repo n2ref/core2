@@ -125,24 +125,18 @@ class Route {
      */
     private function validateAction(array|\Closure $callback): void {
 
-        if (is_array($callback)) {
-            $correct = ! empty($callback[0]) &&
-                       ! empty($callback[1]) &&
-                       is_string($callback[1]);
-
-            if ($correct) {
-                if (is_string($callback[0])) {
-                    if ( ! class_exists($callback[0])) {
-                        $correct = false;
-                    }
-
-                } elseif ( ! is_object($callback[0])) {
-                    $correct = false;
+        if (is_array($callback) &&
+            ! empty($callback[0]) &&
+            ! empty($callback[1]) &&
+            is_string($callback[1])
+        ) {
+            if (is_string($callback[0])) {
+                if ( ! class_exists($callback[0])) {
+                    throw new \Exception('Class api not found: ' . $callback[0]);
                 }
-            }
 
-            if ( ! $correct) {
-                throw new \Exception('Error callback param');
+            } elseif ( ! is_object($callback[0])) {
+                throw new \Exception('Action api incorrect. Check router params');
             }
         }
     }
@@ -192,7 +186,7 @@ class Route {
         $path = $this->path;
         $path = str_replace('\~', '~', $path);
         $path = str_replace('~', '\~', $path);
-        $path = "~^{$path}$~u";
+        $path = "~^{$path}$~ui";
 
         if (preg_match_all('~\{(?<name>[a-zA-Z0-9_]+)(?:|:(?<rule>[^}]+))\}~u', $path, $matches)) {
 

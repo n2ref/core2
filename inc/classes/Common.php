@@ -54,15 +54,26 @@ class Common extends \Core2\Acl {
     /**
      * Ищет перевод для строки $str
      * @param string $str
+     * @param array  $data
      * @param string $module
      * @return string
      */
-    public function _($str, $module = '') {
+    public function _($str, $data = [], $module = '') {
+
+        // DEPRECATED
+        if ($data && is_string($data) && ! $module) {
+            $module = $data;
+        }
 
         $module = $module ?: $this->module;
 
         if ($module === 'admin') {
             $module = 'core2';
+        }
+
+        // Замена переменных (%s) в тексте
+        if ($data && is_array($data)) {
+            $str = call_user_func_array('sprintf', [$str, ...$data]);
         }
 
         return $this->translate->tr($str, $module);
@@ -229,6 +240,97 @@ class Common extends \Core2\Acl {
 		return $v;
 	}
 
+
+    /**
+     * Запуск расчета цен спецификаций для калькуляции
+     * @param string $module
+     * @param string $method
+     * @param array  $params
+     * @return string
+     * @throws Exception
+     */
+    public function startCli(string $module, string $method, array $params = []): string {
+
+        if ( ! function_exists('exec')) {
+            throw new \Exception("function 'exec' not found");
+        }
+
+        $php_path = $this->config->php && $this->config->php->path ? $this->config->php->path : '';
+
+        if ( ! $php_path) {
+            $system_php_path = exec('which php');
+            if ( ! empty($system_php_path)) {
+                $php_path = $system_php_path;
+            } else {
+                throw new \Exception('php not found');
+            }
+        }
+
+        $cmd = sprintf(
+            '%s %s --module %s --action %s --section %s',
+            $php_path,
+            DOC_ROOT . 'core2/cli.php',
+            $module,
+            $method,
+            $this->config->system ? $this->config->system->host : '',
+        );
+
+        foreach ($params as $param) {
+            $cmd .= " -p '{$param}'";
+        }
+
+        $output = [];
+        exec($cmd, $output);
+
+        return trim(implode('', $output));
+    }
+
+
+    /**
+     * Запуск расчета цен спецификаций для калькуляции
+     * @param string $module
+     * @param string $method
+     * @param array  $params
+     * @return int PID
+     * @throws Exception
+     */
+    public function startCliBg(string $module, string $method, array $params = []): int {
+
+        if ( ! function_exists('exec')) {
+            throw new \Exception("function 'exec' not found");
+        }
+
+        $php_path = $this->config->php && $this->config->php->path ? $this->config->php->path : '';
+
+        if ( ! $php_path) {
+            $system_php_path = exec('which php');
+            if ( ! empty($system_php_path)) {
+                $php_path = $system_php_path;
+            } else {
+                throw new \Exception('php not found');
+            }
+        }
+
+        $cmd = sprintf(
+            '%s %s --module %s --action %s --section %s',
+            $php_path,
+            DOC_ROOT . 'core2/cli.php',
+            $module,
+            $method,
+            $this->config->system ? $this->config->system->host : '',
+        );
+
+        foreach ($params as $param) {
+            $cmd .= " -p '{$param}'";
+        }
+
+        $cmd .= " 2>&1 & echo $!";
+
+        $output = [];
+        exec($cmd, $output);
+
+        return (int)trim(current($output));
+    }
 
 	
 	/**

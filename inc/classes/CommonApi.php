@@ -2,6 +2,7 @@
 require_once 'Acl.php';
 require_once 'Emitter.php';
 require_once 'HttpException.php';
+require_once 'Request.php';
 
 use Core2\Registry;
 use Core2\Error;
@@ -34,9 +35,7 @@ class CommonApi extends \Core2\Acl {
 
 		$this->auth  = $reg->isRegistered('auth') ? $reg->get('auth') : null;
         $this->route = $reg->isRegistered('route') ? $reg->get('route') : [];
-        if ($this->route && $this->route['query']) {
-            parse_str($this->route['query'], $this->route['query']);
-        }
+
 	}
 
 
@@ -263,13 +262,17 @@ class CommonApi extends \Core2\Acl {
             ];
 
         } catch (\Exception $e) {
-            $this->log->error("Fatal error", $e);
-            $is_debug = $this->config?->debug?->on || $this->auth->ADMIN;
+            if ($e::class !== 'Exception') {
+                $this->log->error("App error", $e);
+                http_response_code(500);
 
-            http_response_code(500);
+            } else {
+                http_response_code(400);
+            }
+
             return [
                 'error_code'    => 'error',
-                'error_message' => $is_debug ? $e->getMessage() : $this->_('Ошибка. Обновите страницу или попробуйте позже')
+                'error_message' => $e->getMessage()
             ];
         }
     }
