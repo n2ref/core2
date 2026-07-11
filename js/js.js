@@ -663,6 +663,30 @@ document.addEventListener("DOMContentLoaded",
 								elem.setAttribute('listener', 'true');
 							}
 						}
+						for (const ifr of iframes) {
+							if (ifr.id == 'core-iframe') continue;
+							ifr.onload = function() {
+								//если это наш iframe, наблюдаем за его изменениями
+								const iframeDocument = ifr.contentDocument || ifr.contentWindow.document;
+								if (iframeDocument) {
+									const iframeObserver = new MutationObserver(function (mutations) {
+										console.log('Контент изменился! Количество мутаций:', mutations.length);
+										// Пересчитываем высоту
+										const height = Math.max(
+											iframeDocument.body.scrollHeight,
+											iframeDocument.documentElement.scrollHeight
+										);
+										ifr.style.height = height + 'px';
+									});
+									iframeObserver.observe(iframeDocument.body, {
+										childList: true,
+										subtree: true,
+										attributes: true,
+										characterData: true,
+									});
+								}
+							}
+						}
 						const urls = nod.querySelectorAll("[data-url]");
 						for (const elem of urls) {
 							fetchDataAndUpdateElement(elem);

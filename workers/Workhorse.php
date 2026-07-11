@@ -53,6 +53,7 @@ class Workhorse extends \Common
             'handler' => $handler,
             'status' => 'start',
             'executor' => "Mod{$this->module}Worker->$action",
+            'payload' => $workload->payload,
         ];
         $this->db->insert("core_worker_jobs", $data);
 
