@@ -120,6 +120,8 @@ class Roles extends \Common {
 
             $list->table = "core_roles";
 
+            $list->addSearch($this->translate->tr("Роль"), "name", "TEXT");
+
             $list->SQL = "
                 SELECT `id`,
                        `name`,
@@ -127,6 +129,7 @@ class Roles extends \Common {
                        position,
                        is_active_sw
                 FROM `core_roles` 
+                WHERE 1 /*ADD_SEARCH*/
                 ORDER BY position
             ";
 
