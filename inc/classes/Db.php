@@ -170,6 +170,15 @@ class Db
             if ($db === "db") {
                 $db = $reg->get("db|admin");
             }
+            if (!$db->isConnected()) {
+                //переподключаемся к базе при разрыве соединения
+                $db = $this->establishConnection($this->config->database);
+                if (!$db) {
+                    throw new Exception("Database not connected");
+                }
+                \Zend_Db_Table::setDefaultAdapter($db);
+                $reg->set("db|admin", $db);
+            }
             return $db;
         }
         // Получение указанного кэша
@@ -349,7 +358,7 @@ class Db
      * @param LaminasConfig $database
      * @return \Zend_Db_Adapter_Abstract
      */
-    private function establishConnection(LaminasConfig $database)
+    private function establishConnection(LaminasConfig $database): \Zend_Db_Adapter_Abstract
     {
         try {
             $db = $this->getConnection($database);
