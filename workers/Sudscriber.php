@@ -24,6 +24,8 @@ class Subscriber
         $this->_config = Registry::get('config');
         $core_config = Registry::get('core_config');
 
+        return; //пока не нужен
+
         // Инициализация Redis клиента (аналогично Eventer)
         $this->client = new Client([
             'host' => $core_config->cache->options->server->host,
@@ -52,6 +54,8 @@ class Subscriber
      */
     public function run(\GearmanJob|Job $job, array &$log)
     {
+        return;  //пока не нужен
+
         $this->toLog("Worker started. Listening on stream: {$this->streamName}", self::LOG_LEVEL_INFO);
 
         while (true) {
