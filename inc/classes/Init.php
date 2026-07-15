@@ -323,7 +323,6 @@ class Init extends Acl {
                 require_once 'core2/inc/classes/Api.php';
                 header('Content-type: application/json; charset="utf-8"');
                 try {
-                    $route['query'] = http_build_query($route['query']); //DEPRECATED
                     return (new Core2\Api($route))->dispatchApi();
                 } catch (Exception $e) {
                     return Error::catchJsonException($e->getMessage(), $e->getCode());

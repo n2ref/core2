@@ -36,16 +36,15 @@ class Api extends Acl
 
         try {
             if ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
-                if (!empty(self::$route['query'])) {
+                if (!empty(self::$route['query']) && !empty(self::$route['query']['table'])) {
                     //возможно это удаление из браузера
-                    if (str_starts_with(self::$route['query'], 'mod_') && str_contains(self::$route['query'], '.')) {
+                    if (str_starts_with(self::$route['query']['table'], 'mod_') && !empty(self::$route['query']['field'])) {
                         //удаляют запись из таблицы
                         $route = self::$route;
-                        $query = explode('=', $route['query']);
                         $route['params'] = [
                             '_resource' => key($route['params']),
-                            '_field' => $query[0],
-                            '_value' => $query[1]
+                            '_field' => $route['query']['table'] . "." . $route['query']['field'],
+                            '_value' => $route['query']['value']
                         ];
                         $route['query'] = '';
                         Registry::set('route', $route);

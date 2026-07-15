@@ -1518,6 +1518,7 @@ class listTable extends initList {
         if ($this->checkAcl($this->resource, 'list_all') || $this->checkAcl($this->resource, 'list_owner')) {
             $this->makeTable();
             $loc = $this->ajax ? $_SERVER['QUERY_STRING'] . "&__{$this->resource}=ajax" : $_SERVER['QUERY_STRING'];
+            $loc = "index.php?$loc";
 
             echo "<script>
                 if (!listx){

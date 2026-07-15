@@ -37,7 +37,6 @@ class Workhorse extends \Common
         if (!defined("DOC_PATH")) {
             define("DOC_PATH", substr(DOC_ROOT, strlen(rtrim($_SERVER['DOCUMENT_ROOT'], '/'))) ? : '/');
         }
-
         $in_job = $this->db->fetchRow("SELECT 1 FROM core_worker_jobs WHERE id=? AND status != 'finish'", $id);
         if ($in_job) {
             //задача уже обрабатывается
@@ -53,7 +52,7 @@ class Workhorse extends \Common
             'handler' => $handler,
             'status' => 'start',
             'executor' => "Mod{$this->module}Worker->$action",
-            'payload' => $workload->payload,
+            'payload' => json_encode($workload->payload),
         ];
         $this->db->insert("core_worker_jobs", $data);
 

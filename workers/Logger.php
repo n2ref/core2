@@ -85,7 +85,6 @@ class Logger
                 foreach ($this->_access_files as $access_file) {
                     $corelog = new Log('logger');
                     $corelog->file($access_file)->access($workload->auth->NAME, $workload->payload->sid);
-                    $log[] = "ACCESS LOG: " . $access_file;
                 }
 
             } else {
