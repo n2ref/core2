@@ -1084,6 +1084,7 @@ abstract class Table extends Acl {
     /**
      * Получение данных.
      * @return array
+     * @deprecated требуется использовать fetchRecords
      */
     abstract public function fetchRows(): array;
 

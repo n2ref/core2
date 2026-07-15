@@ -37,6 +37,7 @@ class Data extends Table {
     /**
      * Получение данных.
      * @return Row[]
+     * @deprecated требуется использовать fetchRecords
      */
     public function fetchRows(): array {
 
