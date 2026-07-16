@@ -236,6 +236,10 @@ class Parallel extends Db {
                         E_CORE_WARNING, E_COMPILE_WARNING, E_PARSE
                     ])
                 ) {
+                    $this->log->error('Core2 parallel task fatal error', [
+                        'error'  => $error,
+                        'buffer' => (string)$buffer,
+                    ]);
                     $this->sendSocketData($socket_parent, [
                         'id'       => $task_id,
                         'pid'      => posix_getpid(),
@@ -248,7 +252,7 @@ class Parallel extends Db {
 
             try {
                 $result_value = $task();
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
                 $result_value = [
                     'error_message' => $e->getMessage(),
                     'file'          => $e->getFile(),
@@ -303,7 +307,16 @@ class Parallel extends Db {
         $sending_data  = serialize($data) . "--{$this->boundary}--\0\r\n";
         $buffer_length = mb_strlen($sending_data, '8bit');
 
-        socket_write($socket, $sending_data, $buffer_length);
+        $result = @socket_write($socket, $sending_data, $buffer_length);
+
+        if ($result === false) {
+            $this->log->error('Core2 parallel task sendSocketData failed:', [
+                'code'  => socket_last_error($socket),
+                'error' => socket_strerror(socket_last_error($socket)),
+                'debug' => debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 10),
+            ]);
+        }
+
         socket_close($socket);
     }
 
