@@ -151,7 +151,7 @@ class Db
                     $module_config = $this->getModuleConfig($module);
 
                     if ($module_config && $module_config->database) {
-                        // у этого модуля собственный адаптер
+                        // у этого модуля собственный адаптер, сразу возвращаем его подключение
                         $db = $this->establishConnection(
                             $module_config->database,
                         );
@@ -159,19 +159,28 @@ class Db
                         return $db;
                     } else {
                         $reg->set($k_module, "db"); //храним в реестре только указание, что $k_module будет использовать подключение по умолчанию
-                        if ($reg->isRegistered("db|admin")) {
-                            $db = $reg->get("db|admin");
-                            return $db;
-                        }
                     }
                 }
             }
+
             $db = $reg->get($k_module);
-            if ($db === "db") {
-                $db = $reg->get("db|admin");
+            if ($db === "db") { //у модуля нет своего адаптера
+                $k_module = "db|admin";
+                $db = $reg->get($k_module);
             }
             if (!$db->isConnected()) {
-                //переподключаемся к базе при разрыве соединения
+                //соединение разорвалось в процессе работы скрипта
+                if ($module !== "admin") {
+                    $module_config = $this->getModuleConfig($module);
+                    if ($module_config && $module_config->database) {
+                        // у этого модуля собственный адаптер
+                        $db = $this->establishConnection(
+                            $module_config->database,
+                        );
+                        $reg->set($k_module, $db);
+                        return $db;
+                    }
+                }
                 $db = $this->establishConnection($this->config->database);
                 if (!$db) {
                     throw new Exception("Database not connected");
