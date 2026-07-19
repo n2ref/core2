@@ -71,12 +71,14 @@ class Common extends \Core2\Acl {
             $module = 'core2';
         }
 
+        $str = $this->translate->tr($str, $module);
+
         // Замена переменных (%s) в тексте
         if ($data && is_array($data)) {
             $str = call_user_func_array('sprintf', [$str, ...$data]);
         }
 
-        return $this->translate->tr($str, $module);
+        return $str;
     }
 
 
