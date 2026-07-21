@@ -1,6 +1,7 @@
 <?php
 use Core2\I18n;
 use Core2\Registry;
+use Core2\Error;
 
 
 // Определяем DOCUMENT_ROOT (для прямых вызовов, например cron)
@@ -38,6 +39,7 @@ $conf_file = DOC_ROOT . "conf.ini";
 if ( ! file_exists($conf_file)) {
     throw new \Exception("conf.ini is missing.", 500);
 }
+
 $config_origin = [
     'system'       => ['name' => 'CORE2'],
     'include_path' => '',
@@ -108,6 +110,93 @@ try {
 
 } catch (Exception $e) {
     throw new \Exception($e->getMessage(), 500);
+    Error::Exception("conf.ini is missing.", 404);
+}
+
+// Memcached для кеширования конфигурации
+$memcached = new Memcached();
+$memcached->addServer('localhost', 11211);
+$memcached->setOption(Memcached::OPT_CONNECT_TIMEOUT, 1000);
+$memcached->setOption(Memcached::OPT_BINARY_PROTOCOL, true);
+
+$cacheKey = 'core2_config_' . md5($_SERVER['SERVER_NAME'] ?? 'production');
+$system_config = $memcached->get($cacheKey);
+$configLoaded = false;
+//обрабатываем общий конфиг
+if ($system_config === false) {
+    $config_origin = [
+        'system'       => ['name' => 'CORE2'],
+        'include_path' => '',
+        'temp'         => getenv('TMP'),
+        'debug'        => ['on' => false],
+        'session'      => [
+            'cookie_httponly'  => true,
+            'use_only_cookies' => true,
+        ],
+        'database'     => [
+            'adapter'               => 'Pdo_Mysql',
+            'params'                => [
+                'charset'        => 'utf8',
+                'driver_options' => [
+                    \PDO::ATTR_TIMEOUT => 5,
+                    //                \PDO::ATTR_PERSISTENT => true,
+                    \PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION,
+                ],
+                'options'        => [
+                    'caseFolding'                => false,
+                    'autoQuoteIdentifiers'       => true,
+                    'allowSerialization'         => true,
+                    'autoReconnectOnUnserialize' => true,
+                ],
+            ],
+            'isDefaultTableAdapter' => true,
+            'profiler'              => [
+                'enabled' => false,
+                'class'   => 'Zend_Db_Profiler_Firebug',
+            ],
+        ],
+    ];
+
+    // определяем путь к темповой папке
+    if (empty($config_origin['temp'])) {
+        $config_origin['temp'] = sys_get_temp_dir();
+    }
+
+    //обрабатываем общий конфиг
+    try {
+        $section = ! empty($_SERVER['SERVER_NAME']) ? $_SERVER['SERVER_NAME'] : 'production';
+
+        $conf          = new Core2\Config($config_origin);
+        $system_config = $conf->getData()->merge($conf->readIni($conf_file, $section));
+
+
+        $conf_d = __DIR__ . "/conf.ext.ini";
+        if (file_exists($conf_d)) {
+            $system_config->merge($conf->readIni($conf_d, $section));
+        }
+
+        $core_conf_file = __DIR__ . "/conf.ini";
+        if (file_exists($core_conf_file)) {
+            $core_config = new Core2\Config();
+            $system_config->core2 = $core_config->readIni($core_conf_file, 'production');
+        }
+
+
+    } catch (Exception $e) {
+        Error::Exception($e->getMessage());
+    }
+    $memcached->set($cacheKey, $system_config, 900);
+    $configLoaded = true;
+} else {
+    $configLoaded = true;
+}
+
+if ( ! $configLoaded) {
+    throw new Exception("Unable to load configuration.");
+}
+$tz = $system_config->system->timezone;
+if ( ! empty($tz)) {
+    date_default_timezone_set($tz);
 }
 
 // отладка приложения
@@ -125,6 +214,19 @@ if ($system_config->database) {
     }
     if (empty($system_config->database->params->dbname)) {
         throw new \Exception('Database name is empty!', 500);
+if (empty($_SERVER['HTTPS'])) {
+    if (isset($system_config->system) && ! empty($system_config->system->https)) {
+        header('Location: https://' . $_SERVER['SERVER_NAME']);
+        return;
+    }
+}
+//проверяем настройки для базы данных
+if ($system_config->database) {
+    if (empty($system_config->database->adapter)) {
+        Error::Exception('Database adapter is empty!');
+    }
+    if (empty($system_config->database->params->dbname)) {
+        Error::Exception('Database name is empty!');
     }
 }
 
@@ -148,3 +250,4 @@ if (file_exists($core_conf_file)) {
     $core_config = new Core2\Config();
     Registry::set('core_config', $core_config->readIni($core_conf_file, 'production'));
 }
+Registry::set('core_config', $system_config->core2);

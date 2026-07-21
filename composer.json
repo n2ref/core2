@@ -49,6 +49,7 @@
     "ext-json": "*",
     "ext-zip": "*",
     "ext-mbstring": "*",
+    "ext-memcached": "*",
     "ext-curl": "*",
     "ext-gd": "*",
     "ext-intl": "*",
