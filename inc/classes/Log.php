@@ -1,351 +1,167 @@
 <?php
 namespace Core2;
 use Monolog\Logger;
+use Monolog\Formatter\LineFormatter;
 use Monolog\Handler\StreamHandler;
 use Monolog\Handler\SlackWebhookHandler;
-use Monolog\Handler\SyslogHandler;
-use Monolog\Processor\WebProcessor;
-use Monolog\Formatter\LineFormatter;
+use Monolog\Handler\AbstractProcessingHandler;
 use Monolog\Handler\MissingExtensionException;
 use Monolog\Handler\TelegramBotHandler;
-
-require_once 'Log/DiscordHandler.php';
+use Core2\Log\DiscordHandler;
+use \Laminas\Config\Config;
 
 /**
- * Обеспечение журналирования запросов пользователей и других событий
+ * Журналирование событий
  */
 class Log {
 
-    private $log;
-    private $config;
-    private $writer;
-    private $writer_custom;
-    private $handlers;
-    private string $date_format = "Y-m-d H:i:s.u";
+    private Logger $logger;
+    private ?Config $config;
+    private ?Config $core_config;
+    private string  $logs_dir    = '';
+    private array   $files       = [];
+    private string $date_format  = "Y-m-d H:i:s.u";
+    private array  $handlers     = [];
 
 
     /**
-     * Log constructor.
      * @param string $name
-     * @throws \Exception
      */
-    public function __construct($name = 'core2') {
+    public function __construct(string $name = 'core2') {
 
-        if ($name !== 'access') {
-            //эта секция предназначена для работы ядра
-            $this->log = new Logger($_SERVER['SERVER_NAME'] . "." . $name);
-            $this->config = Registry::get('core_config');
+        $this->logger      = new Logger($_SERVER['SERVER_NAME'] . "." . $name);
+        $this->config      = Registry::isRegistered('config') ? Registry::get('config') : null;
+        $this->core_config = Registry::isRegistered('core_config') ? Registry::get('core_config') : null;
 
-            if ($name === 'profile') {
-                if (isset($this->config->profile->mysql)) {
-                    $profile_mysql = strpos($this->config->profile->mysql, '/') !== 0
-                        ? __DIR__ . "/../../" . $this->config->profile->mysql
-                        : $this->config->profile->mysql;
+        $this->logs_dir = $this?->config?->log?->dir && is_string($this->config->log->dir)
+            ? $this->config->log->dir
+            : ($this?->config?->log?->system?->file ?: dirname($this->config->log->system->file));
 
-                    $stream = new StreamHandler($profile_mysql);
-                    $this->log->pushHandler($stream);
-                    $this->writer = 'file';
-                } else {
-                    return new \stdClass();
-                }
 
-            }
-            elseif ($name === 'webhook') {
-                if (isset($this->config->log) &&
-                    isset($this->config->log->webhook)
-                ) {
-                    //TODO add more webhooks
-
-                } else {
-                    return new \stdClass();
-                }
-            }
-            elseif ($name === 'logger') {
-                //Logger worker
-                $this->writer = 'file';
-            } else {
-                $config = Registry::get('config');
-                if (isset($config->log) && !$config->log->on) return new \stdClass(); //юзер отключил ведение логов
-
-                $files = [];
-                if (isset($this->config->log) &&
-                    isset($this->config->log->system) &&
-                    ! empty($this->config->log->system->file) &&
-                    is_string($this->config->log->system->file)
-                ) {
-                    $files[] = $this->config->log->system->file;
-                }
-                if (isset($config->log) &&
-                    isset($config->log->system) &&
-                    ! empty($config->log->system->file) &&
-                    is_string($config->log->system->file)
-                ) {
-                    if (!in_array($config->log->system->file, $files)) $files[] = $config->log->system->file;
-                }
-
-                foreach ($files as $file) {
-
-                    $stream = new StreamHandler($file);
-                    //$stream->setFormatter(new NormalizerFormatter());
-                    $this->log->pushHandler($stream);
-                }
-            }
-        }
-        else {
-            $this->config = Registry::get('config');
-            if (isset($this->config->log) &&
-                isset($this->config->log->access) &&
+        if ($name == 'access') {
+            if ($this?->config?->log &&
+                $this?->config?->log?->access &&
                 ! empty($this->config->log->access->file) &&
                 is_string($this->config->log->access->file)
             ) {
-                $this->log    = new Logger($name);
-                $this->log->pushHandler(new StreamHandler($this->config->log->access->file, Logger::INFO));
-                $this->writer = 'file';
+                $this->files[] = $this->config->log->access->file;
+            }
+
+        } else {
+            if ($this?->config?->log &&
+                $this?->config?->log?->system &&
+                ! empty($this->config->log->system->file) &&
+                is_string($this->config->log->system->file)
+            ) {
+                $this->files[] = $this->config->log->system->file;
+            }
+
+            if ($this->core_config?->log &&
+                ($this->core_config->log->system) &&
+                ! empty($this->core_config->log->system->file) &&
+                is_string($this->core_config->log->system->file)
+            ) {
+                if ( ! in_array($this->core_config->log->system->file, $this->files)) {
+                    $this->files[] = $this->core_config->log->system->file;
+                }
             }
         }
-    }
-
-
-    /**
-     * Дополнительный лог в заданный файл
-     * @param $filename
-     * @return $this
-     * @throws \Exception
-     */
-    public function file($filename) {
-        if ( ! $this->writer_custom) {
-            $this->log->pushHandler(new StreamHandler($filename));
-            $this->writer_custom = $filename;
-        }
-        return $this;
-    }
-
-
-    /**
-     * Журнал запросов
-     * @param string $name
-     */
-    public function access($name, $sid) {
-        $this->log->pushProcessor(new WebProcessor());
-        $this->log->info($name, array('sid' => $sid));
     }
 
 
     /**
      * Информационная запись в лог
-     * @param array|string $msg
-     * @param array        $context
+     * @param string           $message
+     * @param array|\Throwable $context
      * @throws MissingExtensionException
      */
-    public function info($msg, $context = array()): void {
+    public function info(string $message, array|\Throwable $context = []): void {
 
-        if (is_array($msg)) {
-            if (!$context) {
-                $context = $msg;
-                $msg = '-';
-            }
-            else $msg = json_encode($msg);
-        }
+        $this->callEvent(Logger::INFO, $message, $context);
+    }
 
-        if ($this->handlers) {
-            $this->setHandler(Logger::INFO);
-        } else {
-            $this->subscription(Logger::ERROR);
-        }
 
-        try {
-            $this->log->info($msg, $context);
+    /**
+     * @param string           $message
+     * @param array|\Throwable $context
+     * @throws \Exception
+     */
+    public function notice(string $message, array|\Throwable $context = []): void {
 
-        } catch (\Exception $e) {
-            $this->clearHandlers();
-            $this->setWriter();
-            $this->log->error($e->getMessage(), [ 'exception' => $e ]);
-        }
-
-        $this->clearHandlers();
-        $this->removeCustomWriter();
+        $this->callEvent(Logger::NOTICE, $message, $context);
     }
 
 
     /**
      * Предупреждение в лог
-     * @param array|string $msg
-     * @param array        $context
+     * @param string           $message
+     * @param array|\Throwable $context
+     * @throws MissingExtensionException
+     * @throws \Exception
      */
-    public function warning($msg, $context = array()) {
-        if (is_array($msg)) {
-            if (!$context) {
-                $context = $msg;
-                $msg = '-';
-            }
-            else $msg = json_encode($msg);
-        }
-        if ($this->handlers) {
-            $this->setHandler(Logger::WARNING);
-        } else {
-            $this->subscription(Logger::ERROR);
-        }
+    public function warning(string $message, array|\Throwable $context = []): void {
 
-        try {
-            $this->log->warning($msg, $context);
-
-        } catch (\Exception $e) {
-            $this->clearHandlers();
-            $this->setWriter();
-            $this->log->error($e->getMessage(), [ 'exception' => $e ]);
-        }
-
-        $this->clearHandlers();
-        $this->removeCustomWriter();
+        $this->callEvent(Logger::WARNING, $message, $context);
     }
 
 
     /**
      * Предупреждение в лог
-     * @param array|string     $msg
-     * @param array|\Exception $context
+     * @param string          $message
+     * @param array|\Throwable $context
      * @throws MissingExtensionException
+     * @throws \Exception
      */
-    public function error($msg, $context = array()) {
+    public function error(string $message, array|\Throwable $context = []): void {
 
-        if (is_array($msg)) {
-            if (!$context) {
-                $context = $msg;
-                $msg = '-';
-            }
-            else $msg = json_encode($msg);
-        }
+        $this->callEvent(Logger::ERROR, $message, $context);
+    }
 
-        if ($context instanceof \Exception) {
-            $context = [
-                'message' => $context->getMessage(),
-                'file'    => $context->getFile(),
-                'line'    => $context->getLine(),
-                'trace'   => $context->getTrace(),
-            ];
-        }
 
-        if ($this->handlers) {
-            $this->setHandler(Logger::ERROR);
-        } else {
-            $this->subscription(Logger::ERROR);
-        }
+    /**
+     * @param string           $message
+     * @param array|\Throwable $context
+     * @throws \Exception
+     */
+    public function critical(string $message, array|\Throwable $context = []): void {
 
-        try {
-            $this->log->error($msg, $context);
+        $this->callEvent(Logger::CRITICAL, $message, $context);
+    }
 
-        } catch (\Exception $e) {
-            $this->clearHandlers();
-            $this->setWriter();
-            $this->log->error($e->getMessage(), [ 'exception' => $e ]);
-        }
 
-        $this->clearHandlers();
-        $this->removeCustomWriter();
+    /**
+     * @param string           $message
+     * @param array|\Throwable $context
+     * @throws \Exception
+     */
+    public function emergency(string $message, array|\Throwable $context = []): void {
+
+        $this->callEvent(Logger::EMERGENCY, $message, $context);
     }
 
 
     /**
      * Отладочная информация в лог
-     * @param array|string $msg
-     * @param array        $context
-     * @throws MissingExtensionException
+     * @param string           $message
+     * @param array|\Throwable $context
+     * @throws \Exception
      */
-    public function debug($msg, $context = array()) {
-        if (is_array($msg)) {
-            if (!$context) {
-                $context = $msg;
-                $msg = '-';
-            }
-            else $msg = json_encode($msg);
-        }
-        if ($this->handlers) {
-            $this->setHandler(Logger::DEBUG);
-        } else {
-            $this->subscription(Logger::ERROR);
-        }
+    public function debug(string $message, array|\Throwable $context = []): void {
 
-        try {
-            $this->log->debug($msg, $context);
-
-        } catch (\Exception $e) {
-            $this->clearHandlers();
-            $this->setWriter();
-            $this->log->error($e->getMessage(), [ 'exception' => $e ]);
-        }
-
-        $this->clearHandlers();
-        $this->removeCustomWriter();
+        $this->callEvent(Logger::DEBUG, $message, $context);
     }
 
 
     /**
-     * @return string
+     * Лог в заданный файл
+     * @param string $filename
+     * @return $this
      */
-    public function getWriter() {
-        return $this->writer;
-    }
+    public function file(string $filename): self {
 
+        $this->handlerFile($filename);
 
-    /**
-     * прекращение записи в заданный дополнительный лог
-     */
-    private function removeCustomWriter() {
-        if ($this->writer_custom) {
-            $this->log->popHandler();
-            $this->writer_custom = false;
-        }
-    }
-
-
-    /**
-     * Куда писать журнал запросов
-     */
-    private function setWriter() {
-        if ( ! $this->writer) {
-            if (isset($this->config->log) &&
-                isset($this->config->log->system) &&
-                ! empty($this->config->log->system->file) &&
-                is_string($this->config->log->system->file)
-            ) {
-                $this->log->pushHandler(new StreamHandler($this->config->log->system->file, Logger::INFO));
-                $this->writer = 'file';
-            } else {
-                $this->log->pushHandler(new SyslogHandler($_SERVER['SERVER_NAME'] . ".core2"));
-                $this->writer = 'syslog';
-            }
-        }
-    }
-
-
-    /**
-     * Удаление заданных ранее дополнительных обработчиков
-     * @return void
-     */
-    private function clearHandlers(): void {
-
-        $this->handlers = [];
-        $this->log->setHandlers([]);
-    }
-
-
-    /**
-     * Установка обработчика
-     * @param int $level уровень журналирования
-     * @throws MissingExtensionException
-     */
-    private function setHandler($level): void {
-
-        while ($this->log->getHandlers()) {
-            $this->log->popHandler();
-        }
-
-        foreach ($this->handlers as $name => $params) {
-            if ($name == 'slack') {
-                $handler = new SlackWebhookHandler($params[0], $params[1], $params[2], $params[3], $params[4], $params[5], $params[6], $level);
-                $this->log->pushHandler($handler);
-            }
-        }
+        return $this;
     }
 
 
@@ -356,17 +172,40 @@ class Log {
      */
     public function slack(): \stdClass|self {
 
-        if ( ! $this->config?->log?->webhook?->slack?->url ||
-             ! is_string($this->config->log->webhook->slack->url)
+        if ( ! $this->core_config?->log?->webhook?->slack?->url ||
+             ! is_string($this->core_config->log->webhook->slack->url)
         ) {
             return new \stdClass();
         }
 
 
-        $handler = new SlackWebhookHandler($this->config->log->webhook->slack->url);
+        $handler = new SlackWebhookHandler($this->core_config->log->webhook->slack->url);
         $handler->setFormatter(new LineFormatter(null, $this->date_format));
 
-        $this->log->pushHandler($handler);
+        $this->handlers[] = $handler;
+
+        return $this;
+    }
+
+
+    /**
+     * Отправка сообщения в Slack
+     * @return self|\stdClass
+     */
+    public function discord(): \stdClass|self {
+
+        if ( ! $this->core_config?->log?->webhook?->discord?->url ||
+             ! is_string($this->core_config->log->webhook->discord->url)
+        ) {
+            return new \stdClass();
+        }
+
+        require_once 'Log/DiscordHandler.php';
+
+        $handler = new DiscordHandler($this->core_config->log->webhook->discord->url);
+        $handler->setFormatter(new LineFormatter(null, $this->date_format));
+
+        $this->handlers[] = $handler;
 
         return $this;
     }
@@ -379,15 +218,15 @@ class Log {
      */
     public function telegram(): \stdClass|self {
 
-        if ( ! $this->config?->log?->webhook?->telegram?->apikey ||
-             ! $this->config?->log?->webhook?->telegram?->channels ||
-             ! is_string($this->config->log->webhook->telegram->apikey) ||
-             ! is_string($this->config->log->webhook->telegram->channels)
+        if ( ! $this->core_config->log?->webhook?->telegram?->apikey ||
+             ! $this->core_config->log?->webhook?->telegram?->channels ||
+             ! is_string($this->core_config->log->webhook->telegram->apikey) ||
+             ! is_string($this->core_config->log->webhook->telegram->channels)
         ) {
             return new \stdClass();
         }
 
-        $channels = explode(',', $this->config->log->webhook->telegram->channels);
+        $channels = explode(',', $this->core_config->log->webhook->telegram->channels);
         $channels = array_map('trim', $channels);
         $channels = array_filter($channels);
 
@@ -396,10 +235,10 @@ class Log {
         }
 
         foreach ($channels as $channel) {
-            $handler = new TelegramBotHandler($this->config->log->webhook->telegram->apikey, $channel);
+            $handler = new TelegramBotHandler($this->core_config->log->webhook->telegram->apikey, $channel);
             $handler->setFormatter(new LineFormatter(null, $this->date_format));
 
-            $this->log->pushHandler($handler);
+            $this->handlers[] = $handler;
         }
 
         return $this;
@@ -407,23 +246,100 @@ class Log {
 
 
     /**
-     * Отправка сообщения в Slack
-     * @return self|\stdClass
+     * @param int              $level
+     * @param string           $message
+     * @param array|\Throwable $context
+     * @return void
+     * @throws MissingExtensionException
+     * @throws \Exception
      */
-    public function discord(): \stdClass|self {
+    private function callEvent(int $level, string $message, array|\Throwable $context = []): void {
 
-        if ( ! $this->config?->log?->webhook?->discord?->url ||
-             ! is_string($this->config->log->webhook->discord->url)
-        ) {
-            return new \stdClass();
+        $name = strtolower(Logger::getLevelName($level));
+
+        if ( ! $this->handlers) {
+            $this->setDefaultHandler();
+            $this->subscription($level);
+        }
+
+        if ($context instanceof \Throwable) {
+            $context = [
+                'error_message' => $context->getMessage(),
+                'file'          => $context->getFile(),
+                'file_line'     => $context->getLine(),
+                'trace'         => $context->getTraceAsString(),
+            ];
         }
 
 
-        $handler = new Log\DiscordHandler($this->config->log->webhook->discord->url);
-        $handler->setFormatter(new LineFormatter(null, $this->date_format));
-        $this->log->pushHandler($handler);
+        $this->setHandlers($level);
 
-        return $this;
+        $this->logger->{$name}($message, $context);
+        $this->clearHandlers();
+    }
+
+
+    /**
+     * @return void
+     * @throws \Exception
+     */
+    private function setDefaultHandler(): void {
+
+        if ($this->files) {
+            foreach ($this->files as $file) {
+                $this->handlerFile($file);
+            }
+        }
+    }
+
+
+    /**
+     * Запись лога в файл
+     * @param string $filename
+     * @return void
+     */
+    private function handlerFile(string $filename): void {
+
+        $filename = str_starts_with($filename, '/')
+            ? $filename
+            : "{$this->logs_dir}/{$filename}";
+
+        if ( ! $filename) {
+            return;
+        }
+
+        $handler = new StreamHandler($filename);
+        $handler->setFormatter(new LineFormatter(null, $this->date_format));
+
+        $this->handlers[] = $handler;
+    }
+
+
+    /**
+     * Удаление заданных ранее дополнительных обработчиков
+     * @return void
+     */
+    private function clearHandlers(): void {
+
+        $this->handlers = [];
+
+        $this->logger->setHandlers([]);
+    }
+
+
+    /**
+     * Установка обработчиков
+     * @param int $level Уровень
+     * @return void
+     */
+    private function setHandlers(int $level): void {
+
+        foreach ($this->handlers as $handler) {
+            if ($handler instanceof AbstractProcessingHandler) {
+                $handler->setLevel($level);
+                $this->logger->pushHandler($handler);
+            }
+        }
     }
 
 
@@ -435,12 +351,12 @@ class Log {
      */
     private function subscription(int $level): void {
 
-        if ($this->config?->log?->subscribe?->level &&
-            $this->config?->log?->subscribe?->recipients &&
-            is_string($this->config->log->subscribe->level) &&
-            is_string($this->config->log->subscribe->recipients)
+        if ($this->core_config?->log?->subscribe?->level &&
+            $this->core_config?->log?->subscribe?->recipients &&
+            is_string($this->core_config->log->subscribe->level) &&
+            is_string($this->core_config->log->subscribe->recipients)
         ) {
-            $subscribe_levels = explode(',', $this->config->log->subscribe->level);
+            $subscribe_levels = explode(',', $this->core_config->log->subscribe->level);
             $subscribe_levels = array_map('trim', $subscribe_levels);
 
             if ( ! in_array('all', $subscribe_levels)) {
@@ -459,7 +375,7 @@ class Log {
             }
 
 
-            $recipients = explode(',', $this->config->log->subscribe->recipients);
+            $recipients = explode(',', $this->core_config->log->subscribe->recipients);
             $recipients = array_map('trim', $recipients);
             $recipients = array_filter($recipients);
 
