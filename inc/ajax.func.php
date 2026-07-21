@@ -1151,10 +1151,9 @@ class ajaxFunc extends Common {
                         $content = null;
 
                     } catch (\Exception $e) {
+                        $this->log->error('Ошибка загрузки файла в s3', $e);
                         throw new \Exception($e->getMessage());
-                        //TODO Log me!
                     }
-
                 }
                 //TODO add GCP here
 
@@ -1173,9 +1172,16 @@ class ajaxFunc extends Common {
 
                 $this->saved_files[] = $file_path;
                 $this->saved_files[] = $file_path_thumb;
+
+
+                // Очищаем переменную и освобождаем память
+                // Иначе возникает ошибка с переполнением памяти на большом количестве
+                unset($content);
+                gc_collect_cycles(); // Принудительный запуск сборщика мусора
             }
         }
     }
+
 
     /**
      * Получение служебных данных формы из сессии

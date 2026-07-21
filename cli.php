@@ -3,6 +3,8 @@
 namespace Core2;
 
 try {
+    require_once 'inc/classes/Error.php';
+
     if (PHP_SAPI !== 'cli') {
         throw new \Exception("Allowed for CLI only.");
     }
@@ -11,7 +13,7 @@ try {
         throw new \Exception("Composer autoload is missing.");
     }
     require_once($autoload);
-    require_once 'inc/classes/Error.php';
+
     require_once 'inc/classes/Cli.php';
     require_once 'inc/classes/Registry.php';
     require_once 'inc/classes/Config.php';

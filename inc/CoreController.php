@@ -641,7 +641,7 @@ class CoreController extends Common implements File {
                         $error['type'] = mb_substr($error['type'], 0, 100);
                     }
 
-                    $level = 'error';
+                    $level = 'warning';
 
                     if ( ! empty($error['level']) &&
                          is_string($error['level']) &&
@@ -650,7 +650,7 @@ class CoreController extends Common implements File {
                         $level = $error['level'];
                     }
 
-                    $error_type = ! empty($error['type']) && is_string($error['type']) ? $error['type'] : 'error';
+                    $error_type = ! empty($error['type']) && is_string($error['type']) ? $error['type'] : 'warning';
 
                     $this->log->{$level}($error_type, [
                         'login'  => $this->auth->NAME,
