@@ -182,8 +182,7 @@ class Init extends Acl {
                         require_once "OpenApi.php";
                         header("Cache-Control: no-cache");
                         $schema = new \Core2\OpenApi();
-                        $html   = $schema->render();
-                        return $html;
+                        return $schema->render();
                     }
 
                     if ($route['action'] == 'sections') {
