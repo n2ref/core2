@@ -2,6 +2,7 @@
 namespace Core2;
 use Monolog\Logger;
 use Monolog\Formatter\LineFormatter;
+use Monolog\Processor\WebProcessor;
 use Monolog\Handler\StreamHandler;
 use Monolog\Handler\SlackWebhookHandler;
 use Monolog\Handler\AbstractProcessingHandler;
@@ -66,6 +67,17 @@ class Log {
                 }
             }
         }
+    }
+
+
+    /**
+     * Журнал запросов
+     * @param string $name
+     * @param string $sid
+     */
+    public function access(string $name, string $sid): void {
+        $this->logger->pushProcessor(new WebProcessor());
+        $this->logger->info($name, ['sid' => $sid]);
     }
 
 
