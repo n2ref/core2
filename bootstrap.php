@@ -214,19 +214,6 @@ if ($system_config->database) {
     }
     if (empty($system_config->database->params->dbname)) {
         throw new \Exception('Database name is empty!', 500);
-if (empty($_SERVER['HTTPS'])) {
-    if (isset($system_config->system) && ! empty($system_config->system->https)) {
-        header('Location: https://' . $_SERVER['SERVER_NAME']);
-        return;
-    }
-}
-//проверяем настройки для базы данных
-if ($system_config->database) {
-    if (empty($system_config->database->adapter)) {
-        Error::Exception('Database adapter is empty!');
-    }
-    if (empty($system_config->database->params->dbname)) {
-        Error::Exception('Database name is empty!');
     }
 }
 
@@ -250,4 +237,3 @@ if (file_exists($core_conf_file)) {
     $core_config = new Core2\Config();
     Registry::set('core_config', $core_config->readIni($core_conf_file, 'production'));
 }
-Registry::set('core_config', $system_config->core2);
