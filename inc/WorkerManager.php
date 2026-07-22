@@ -757,6 +757,7 @@ class WorkerManager {
                     }
                 }
             }
+            unset($db);
             unset($this->functions['Workhorse']);
         }
 
@@ -1439,7 +1440,7 @@ class WorkerManager {
                                     $job . "\0" .
                                     $msg;
                                 fwrite($worker, $request);
-                                echo "Worker FAILED job: $job with exception: $msg \n\n" . strlen($data) . "\n\n$function\n\n$json\n\n";
+                                echo "Worker FAILED job: $job with JSON error: $msg \n\n" . strlen($data) . "\n\n$function\n\n$json\n\n";
                                 $this->toLog("Worker FAILED job: $job with exception: $msg", self::LOG_LEVEL_WORKER_INFO);
                             }
                         }

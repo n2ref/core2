@@ -605,7 +605,7 @@ class Email extends Db {
         if ($queue_id) {
             $where = $this->db->quoteInto('id IN(?)', $queue_id);
             $this->db->update('mod_queue_mails', [
-                'date_send'  => date('Y-m-d H:i:s'),
+                'date_send'  => $isSent ? date('Y-m-d H:i:s') : NULL,
                 'is_error'   => $isSent ? 'N' : 'Y',
                 'last_error' => $isSent ? "" : $mail->ErrorInfo,
             ], $where);

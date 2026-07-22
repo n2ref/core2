@@ -14,6 +14,12 @@ class Modules extends \Zend_Db_Table_Abstract {
 
 	protected $_name = 'core_modules';
 
+    public function setAdapter($db)
+    {
+        parent::_setAdapter($db);
+        return $this;
+    }
+
 	/**
 	 * @param string $expr
 	 * @param array  $var
