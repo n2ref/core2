@@ -14,8 +14,6 @@ class Cli extends Db
      */
     public function run($module, $action, $params) {
 
-        register_shutdown_function(array($this, 'fatal_handler'));
-
         Registry::set('context', array($module, $action));
         Registry::set('auth', new \StdClass());
 
@@ -73,24 +71,5 @@ class Cli extends Db
         }
 
         return PHP_EOL;
-    }
-
-    public function fatal_handler()
-    {
-        $errfile = "unknown file";
-        $errstr  = "shutdown";
-        $errno   = E_CORE_ERROR;
-        $errline = 0;
-
-        $error = error_get_last();
-
-        if ($error !== NULL) {
-            $errno   = $error["type"];
-            $errfile = $error["file"];
-            $errline = $error["line"];
-            $errstr  = $error["message"];
-            $trace   = print_r(debug_backtrace(), true);
-            $this->log->error($errstr . chr(10) . $trace);
-        }
     }
 }
