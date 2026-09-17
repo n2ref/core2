@@ -10,11 +10,6 @@
       "name": "misterEaster",
       "email": "easter.by@gmail.com",
       "role": "Developer"
-    },
-    {
-      "name": "Shabunin Igor",
-      "email": "shabuninil24@gmail.com",
-      "role": "Developer"
     }
   ],
   "minimum-stability": "dev",
@@ -33,6 +28,7 @@
     "laminas/laminas-config": "3.10.1",
     "laminas/laminas-permissions-acl": "2.17.0",
     "laminas/laminas-serializer": "2.18.0",
+    "laminas/laminas-ldap": "2.18.1",
     "belhard/zend-db": "dev-master",
     "belhard/xajax": "dev-master",
     "belhard/floatthead": "dev-master",
