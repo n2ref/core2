@@ -289,7 +289,7 @@ class Common extends \Core2\Acl {
 
 
     /**
-     * Запуск расчета цен спецификаций для калькуляции
+     * Запуск метода cli в отдельном процессе
      * @param string $module
      * @param string $method
      * @param array  $params
@@ -326,7 +326,7 @@ class Common extends \Core2\Acl {
             $cmd .= " -p '{$param}'";
         }
 
-        $cmd .= " 2>&1 & echo $!";
+        $cmd .= " > /dev/null 2>&1 & echo $!";
 
         $output = [];
         exec($cmd, $output);
