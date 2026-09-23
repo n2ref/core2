@@ -240,7 +240,7 @@ class ModAdminApi extends CommonApi
             if ($delete_owner && !$delete_all) {
                 $authorOnly = true;
             }
-            $is = $this->db->fetchAll("EXPLAIN `$table`");
+            $is = $this->db->fetchAll("EXPLAIN " . $this->db->quoteIdentifier($table));
 
             $nodelete = false;
             $noauthor = true;
@@ -273,7 +273,7 @@ class ModAdminApi extends CommonApi
         $this->db->beginTransaction();
         try {
             foreach ($values as $key) {
-                $where = array($this->db->quoteInto("`$field` = ?", $key));
+                $where = array($this->db->quoteInto($this->db->quoteIdentifier($field) . " = ?", $key));
                 if ($authorOnly) {
                     $where[] = $this->db->quoteInto("author = ?", $auth->NAME);
                 }
@@ -385,9 +385,16 @@ class ModAdminApi extends CommonApi
                 throw new RuntimeException("Не хватает данных для переключения");
             }
             $table = explode(".", $data['data']);
-            $refid = isset($table[1]) ? $table[1] : '';
-            $id    = isset($table[2]) ? $table[2] : '';
+            $refid = $table[1] ?? '';
+            $id    = $table[2] ?? '';
             $table = $table[0];
+
+            if ( ! preg_match('~^[a-zA-Z_][a-zA-Z0-9_]*$~', (string)$table) ||
+                 ! preg_match('~^[a-zA-Z_][a-zA-Z0-9_]*$~', (string)$refid)
+            ) {
+                throw new RuntimeException("Не удалось определить данные для переключения");
+            }
+
             $admin      = false;
             if (strpos($table, 'core_') === 0) {
                 //таблица ядра
@@ -404,18 +411,21 @@ class ModAdminApi extends CommonApi
                 }
             }
 
+            if (!$admin) {
+                $edit_all   = $this->checkAcl($resource, 'edit_all');
+                $edit_owner = $this->checkAcl($resource, 'edit_owner');
+                if (!$edit_all && !$edit_owner) throw new RuntimeException("Изменение запрещено");
+            }
 
-
-            preg_match('/[a-z|A-Z|0-9|_|-]+/', trim($table), $arr);
-            $table_name = $arr[0];
+            $table_name = $table;
             $is_active = $refid;
             if (!$id && !empty($data['value'])) {
                 $id = (int) $data['value'];
             }
-            $keys_list = $this->db->fetchRow("SELECT * FROM `{$table_name}` LIMIT 1");
+            $keys_list = $this->db->fetchRow("SELECT * FROM " . $this->db->quoteIdentifier($table_name) . " LIMIT 1");
             $keys = array_keys($keys_list);
             $key = $keys[0];
-            $where = $this->db->quoteInto($key . "= ?", $id);
+            $where = $this->db->quoteInto($this->db->quoteIdentifier($key) . "= ?", $id);
             $this->db->update($table_name, array($is_active => $data['is_active']), $where);
             //очистка кеша активности по всем записям таблицы
             // используется для core_modules
