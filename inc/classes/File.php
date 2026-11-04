@@ -262,7 +262,12 @@ class File extends \Common {
         }
         $res = $this->db->fetchAll($SQL, $arr);
 
-        list($module, $action) = explode("_", $this->resource);
+        if (str_contains($this->resource, '_')) {
+            list($module, $action) = explode("_", $this->resource);
+        } else {
+            $module = $this->resource;
+            $action = 'index';
+        }
 
         $image = new Image();
 

@@ -136,6 +136,7 @@ class Db extends Table {
      * Получение данных из базы
      * @return Row[]
      * @throws \Zend_Db_Select_Exception
+     * @deprecated требуется использовать fetchRecords
      */
     public function fetchRows(): array {
 
