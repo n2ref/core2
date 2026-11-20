@@ -1175,10 +1175,10 @@ class Render extends Acl {
     private function minify(string $html): string {
 
         $search = [
-            '/\>[^\S ]+/s',     // strip whitespaces after tags, except space
-            '/[^\S ]+\</s',     // strip whitespaces before tags, except space
-            '/(\s)+/s',         // shorten multiple whitespace sequences
-            '/<!--(.|\s)*?-->/' // Remove HTML comments
+            '/\>[^\S ]+/s',   // strip whitespaces after tags, except space
+            '/[^\S ]+\</s',   // strip whitespaces before tags, except space
+            '/(\s)+/s',       // shorten multiple whitespace sequences
+            '/<!--.*?-->/s',  // Remove HTML comments
         ];
 
         $replace = [
@@ -1188,7 +1188,8 @@ class Render extends Acl {
             '',
         ];
 
-        return preg_replace($search, $replace, $html);
+        $result = preg_replace($search, $replace, $html);
+        return is_string($result) ? $result : $html;
     }
 
 
